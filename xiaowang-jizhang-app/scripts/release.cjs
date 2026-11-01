@@ -80,9 +80,11 @@ fs.copyFileSync(apkSrc, apkDst)
 
 const htmlPath = path.join(SITE_DIR, 'index.html')
 let html = fs.readFileSync(htmlPath, 'utf8')
+// 注意：体积替换只匹配 HTML 标签内的文本（>xx MB<），
+// 不能裸匹配 "xxMB" —— 会误伤 base64 图片数据（内联图标）
 html = html.replace(/v\d+\.\d+\.\d+/g, `v${version}`)
 html = html.replace(/小王记账-v\d+\.\d+\.\d+\.apk/g, `小王记账-v${version}.apk`)
-html = html.replace(/\d+(\.\d+)?\s*MB/g, `${sizeMB} MB`)
+html = html.replace(/>(\d+(\.\d+)?)\s*MB</g, `>${sizeMB} MB<`)
 fs.writeFileSync(htmlPath, html)
 console.log(`下载页已更新：v${version} / ${sizeMB} MB`)
 
