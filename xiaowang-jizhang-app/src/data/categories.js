@@ -29,22 +29,37 @@ export const INCOME_CATEGORIES = [
 
 /* 账户一级：账户类型（内置，固定） */
 export const ACCOUNT_GROUPS = [
-  { id: 'cash',   name: '现金',   icon: '💰' },
-  { id: 'bank',   name: '银行卡', icon: '🏦' },
-  { id: 'alipay', name: '支付宝', icon: '🅰️' },
-  { id: 'wechat', name: '微信',   icon: '💬' },
-  { id: 'credit', name: '信用卡', icon: '💳' }
+  { id: 'cash',      name: '现金账户', icon: '💰' },
+  { id: 'credit',    name: '信用卡账户', icon: '💳' },
+  { id: 'financial', name: '金融账户', icon: '🏦' },
+  { id: 'virtual',   name: '虚拟账户', icon: '📱' },
+  { id: 'debt',      name: '负债账户', icon: '📉' }
 ]
 
 /* 账户二级：具体账号（用户可增删改）。
- * 默认账号 id 与旧的账户类型 id 保持一致，保证已记录的流水不会错乱。 */
+ * 默认账号 id 沿用历史 id，保证已记录的流水归属不会错乱。 */
 export const DEFAULT_ACCOUNTS = [
-  { id: 'cash',   groupId: 'cash',   name: '现金' },
-  { id: 'bank',   groupId: 'bank',   name: '储蓄卡' },
-  { id: 'alipay', groupId: 'alipay', name: '支付宝' },
-  { id: 'wechat', groupId: 'wechat', name: '微信零钱' },
-  { id: 'credit', groupId: 'credit', name: '信用卡' }
+  { id: 'cash',   groupId: 'cash',      name: '现金' },
+  { id: 'credit', groupId: 'credit',    name: '信用卡' },
+  { id: 'bank',   groupId: 'financial', name: '储蓄卡' },
+  { id: 'fund',   groupId: 'financial', name: '理财账户' },
+  { id: 'alipay', groupId: 'virtual',   name: '支付宝' },
+  { id: 'wechat', groupId: 'virtual',   name: '微信零钱' },
+  { id: 'debt',   groupId: 'debt',      name: '借款' }
 ]
+
+/* v1.2 及更早版本的 groupId 与账户类型 id 同名，
+ * 升级到新的五大账户类型后需要把已有账号迁移到对应分组。 */
+export const GROUP_MIGRATION = {
+  cash: 'cash', bank: 'financial', credit: 'credit',
+  alipay: 'virtual', wechat: 'virtual'
+}
+
+/** 把旧 groupId 归一到新分组；无法识别时归入金融账户 */
+export function normalizeGroupId(groupId) {
+  if (ACCOUNT_GROUPS.some(g => g.id === groupId)) return groupId
+  return GROUP_MIGRATION[groupId] || 'financial'
+}
 
 export function getCategories(type) {
   return type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES

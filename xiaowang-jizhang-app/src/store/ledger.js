@@ -1,5 +1,7 @@
 import { reactive, computed, watch } from 'vue'
-import { getCategory, ACCOUNT_GROUPS, DEFAULT_ACCOUNTS } from '../data/categories.js'
+import {
+  getCategory, ACCOUNT_GROUPS, DEFAULT_ACCOUNTS, normalizeGroupId
+} from '../data/categories.js'
 
 const STORAGE_KEY = 'xwj_records_v1'
 const SEED_KEY = 'xwj_seeded_v1'
@@ -78,14 +80,24 @@ function seedRecords() {
 
 /* ---------- 具体账号（二级）持久化 ---------- */
 function loadAccounts() {
+  let list = null
   try {
     const raw = localStorage.getItem(ACCOUNT_KEY)
     if (raw) {
-      const list = JSON.parse(raw)
-      if (Array.isArray(list) && list.length) return list
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed) && parsed.length) list = parsed
     }
   } catch (e) { /* 解析失败则回落到默认账号 */ }
-  return DEFAULT_ACCOUNTS.map(a => ({ ...a }))
+
+  if (!list) return DEFAULT_ACCOUNTS.map(a => ({ ...a }))
+
+  // 迁移：旧版组名 → 新版五大账户类型，并补齐新增的默认账号
+  const migrated = list.map(a => ({ ...a, groupId: normalizeGroupId(a.groupId) }))
+  const ids = new Set(migrated.map(a => a.id))
+  for (const d of DEFAULT_ACCOUNTS) {
+    if (!ids.has(d.id)) migrated.push({ ...d })
+  }
+  return migrated
 }
 
 function loadRecords() {
@@ -227,13 +239,45 @@ export function removeRecord(id) {
 
 export function openAdd(type = 'expense') {
   state.editing = {
+    id: null,
     type,
     amount: '',
     categoryId: getCategory(type, 'food').id,
-    accountId: 'wechat',
+    accountId: defaultAccountId(),
     note: '',
     date: today()
   }
+}
+
+/** 打开已有记录的编辑页（明细点击 / 左滑「编辑」） */
+export function openEdit(id) {
+  const r = state.records.find(x => x.id === id)
+  if (!r) return
+  state.editing = {
+    id: r.id,
+    type: r.type,
+    amount: String(r.amount),
+    categoryId: r.categoryId,
+    accountId: r.accountId,
+    note: r.note || '',
+    date: r.date
+  }
+}
+
+/** 复制一条记录：金额/分类/账户/备注不变，日期取今天 */
+export function duplicateRecord(id) {
+  const r = state.records.find(x => x.id === id)
+  if (!r) return null
+  const newId = `${Date.now()}_${seq++}_copy`
+  state.records.unshift({ ...r, id: newId, createdAt: Date.now(), date: today() })
+  state.month = today().slice(0, 7)
+  return newId
+}
+
+/** 默认选中账号：优先微信零钱，缺失时取第一个账号 */
+function defaultAccountId() {
+  const list = state.accounts
+  return (list.find(a => a.id === 'wechat') || list[0] || {}).id || ''
 }
 
 export function closeAdd() { state.editing = null }
@@ -243,18 +287,32 @@ export function saveEditing() {
   if (!e) return false
   const amount = parseFloat(e.amount)
   if (!amount || amount <= 0) return false
-  addRecord({
+  const payload = {
     type: e.type,
     amount: Math.round(amount * 100) / 100,
     categoryId: e.categoryId,
     accountId: e.accountId,
     note: e.note.trim(),
     date: e.date
-  })
+  }
+  if (e.id) {
+    const r = state.records.find(x => x.id === e.id)
+    if (r) Object.assign(r, payload)
+  } else {
+    addRecord(payload)
+  }
   // 自动跳到记账所在月份，让用户立刻看到结果
   state.month = e.date.slice(0, 7)
   closeAdd()
   return true
+}
+
+/** 编辑页内删除当前记录 */
+export function removeEditing() {
+  const e = state.editing
+  if (!e || !e.id) return
+  removeRecord(e.id)
+  closeAdd()
 }
 
 export function clearAll() {

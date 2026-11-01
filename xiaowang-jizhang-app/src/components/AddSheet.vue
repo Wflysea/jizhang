@@ -1,10 +1,18 @@
 <script setup>
-import { computed, ref } from 'vue'
-import { state, saveEditing, closeAdd, accountGroups } from '../store/ledger.js'
+import { computed, ref, watch } from 'vue'
+import {
+  state, saveEditing, closeAdd, removeEditing, accountGroups
+} from '../store/ledger.js'
 import { getCategories } from '../data/categories.js'
 
 const e = computed(() => state.editing)
 const cats = computed(() => getCategories(e.value.type))
+
+/* 每次打开（新增 / 编辑）都重置两级账户选择器 */
+watch(
+  () => state.editing,
+  () => { showPicker.value = false; curGroup.value = null }
+)
 
 /* ===== 两级账户选择：一级账户类型 → 二级具体账号 ===== */
 const showPicker = ref(false)
@@ -66,6 +74,10 @@ function save() {
   if (!ok) { /* 金额为 0 时不保存，交由 UI 提示 */ e.value.amount = '' }
 }
 
+function del() {
+  if (confirm('确定删除这条记录？')) removeEditing()
+}
+
 const displayAmount = computed(() => e.value.amount || '0')
 </script>
 
@@ -77,6 +89,7 @@ const displayAmount = computed(() => e.value.amount || '0')
         <button :class="{ on: e.type === 'expense' }" @click="pickType('expense')">支出</button>
         <button :class="{ on: e.type === 'income' }" @click="pickType('income')">收入</button>
       </div>
+      <button v-if="e.id" class="del" @click="del">删除</button>
       <button class="close" @click="closeAdd">✕</button>
     </header>
 
@@ -166,6 +179,7 @@ const displayAmount = computed(() => e.value.amount || '0')
 }
 .switch button.on { background: var(--brand); color: #fff; font-weight: 600; }
 .close { position: absolute; right: 14px; top: calc(14px + var(--safe-top)); font-size: 18px; color: var(--text-3); }
+.del { position: absolute; left: 14px; top: calc(14px + var(--safe-top)); font-size: 13px; color: #F5453D; }
 
 .amount-row {
   display: flex; align-items: baseline; justify-content: center;

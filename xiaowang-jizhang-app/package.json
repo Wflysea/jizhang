@@ -1,7 +1,7 @@
 {
   "name": "xiaowang-jizhang",
   "private": true,
-  "version": "1.2.0",
+  "version": "1.3.0",
   "type": "module",
   "description": "小王记账 - 安卓记账 App（Vue3 + Vite + Capacitor）",
   "scripts": {
@@ -13,7 +13,10 @@
     "bump:minor": "npm version minor --no-git-tag-version && npm run sync-version",
     "android:sync": "npm run build && cap sync android",
     "android:open": "cap open android",
-    "android:apk": "npm run build && cap sync android && cd android && gradle assembleDebug"
+    "android:apk": "npm run build && cap sync android && cd android && gradle assembleDebug",
+    "release": "node scripts/release.cjs",
+    "release:minor": "node scripts/release.cjs --type=minor",
+    "release:major": "node scripts/release.cjs --type=major"
   },
   "dependencies": {
     "@capacitor/android": "^6.2.3",
