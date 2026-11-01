@@ -1,21 +1,68 @@
 <script setup>
-import { state, clearAll } from '../store/ledger.js'
+import * as XLSX from 'xlsx'
+import { state, clearAll, accountName } from '../store/ledger.js'
+import { getCategory } from '../data/categories.js'
 import pkg from '../../package.json'
 
-function exportCsv() {
-  const head = '日期,类型,分类,金额,账户,备注\n'
-  const rows = state.records
-    .slice()
-    .sort((a, b) => (a.date < b.date ? 1 : -1))
-    .map(r => [r.date, r.type === 'income' ? '收入' : '支出', r.categoryId, r.amount, r.accountId, r.note || ''].join(','))
-    .join('\n')
-  const blob = new Blob(['\uFEFF' + head + rows], { type: 'text/csv;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `小王记账_导出_${new Date().toISOString().slice(0, 10)}.csv`
-  a.click()
-  URL.revokeObjectURL(url)
+/* 导出 Excel：明细流水 + 分类汇总 + 月度汇总 三张工作表 */
+function exportXlsx() {
+  if (!state.records.length) {
+    alert('还没有任何账目可导出')
+    return
+  }
+  const sorted = state.records.slice().sort((a, b) => (a.date < b.date ? 1 : -1))
+
+  // 表1：明细流水
+  const detail = sorted.map(r => ({
+    '日期': r.date,
+    '类型': r.type === 'income' ? '收入' : '支出',
+    '分类': getCategory(r.type, r.categoryId).name,
+    '金额': r.amount,
+    '账户': accountName(r.accountId),
+    '备注': r.note || ''
+  }))
+
+  // 表2：分类汇总（按类型分别统计）
+  const catMap = new Map()
+  for (const r of state.records) {
+    const key = `${r.type === 'income' ? '收入' : '支出'}-${getCategory(r.type, r.categoryId).name}`
+    if (!catMap.has(key)) catMap.set(key, { '类型': r.type === 'income' ? '收入' : '支出', '分类': getCategory(r.type, r.categoryId).name, '金额': 0, '笔数': 0 })
+    const it = catMap.get(key)
+    it['金额'] += r.amount
+    it['笔数'] += 1
+  }
+  const byCat = [...catMap.values()].sort((a, b) => b['金额'] - a['金额'])
+
+  // 表3：月度汇总
+  const monMap = new Map()
+  for (const r of state.records) {
+    const m = r.date.slice(0, 7)
+    if (!monMap.has(m)) monMap.set(m, { '月份': m, '收入': 0, '支出': 0, '结余': 0 })
+    const it = monMap.get(m)
+    if (r.type === 'income') it['收入'] += r.amount
+    else it['支出'] += r.amount
+  }
+  const byMonth = [...monMap.values()]
+    .map(m => { m['结余'] = m['收入'] - m['支出']; return m })
+    .sort((a, b) => (a['月份'] < b['月份'] ? 1 : -1))
+
+  const wb = XLSX.utils.book_new()
+  const ws1 = XLSX.utils.json_to_sheet(detail)
+  const ws2 = XLSX.utils.json_to_sheet(byCat)
+  const ws3 = XLSX.utils.json_to_sheet(byMonth)
+
+  // 列宽自适应
+  ws1['!cols'] = [{ wch: 12 }, { wch: 6 }, { wch: 10 }, { wch: 10 }, { wch: 14 }, { wch: 24 }]
+  ws2['!cols'] = [{ wch: 6 }, { wch: 10 }, { wch: 12 }, { wch: 8 }]
+  ws3['!cols'] = [{ wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 12 }]
+
+  XLSX.utils.book_append_sheet(wb, ws1, '明细流水')
+  XLSX.utils.book_append_sheet(wb, ws2, '分类汇总')
+  XLSX.utils.book_append_sheet(wb, ws3, '月度汇总')
+
+  const d = new Date()
+  const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`
+  XLSX.writeFile(wb, `小王记账_导出_${stamp}.xlsx`)
 }
 
 function reset() {
@@ -35,8 +82,8 @@ function reset() {
 
     <div class="section-title">数据</div>
     <div class="card list">
-      <button class="li" @click="exportCsv">
-        <span class="li-ico">📄</span><span class="li-txt">导出 CSV</span><span class="arrow">›</span>
+      <button class="li" @click="exportXlsx">
+        <span class="li-ico">📄</span><span class="li-txt">导出 Excel</span><span class="arrow">›</span>
       </button>
       <button class="li" @click="reset">
         <span class="li-ico">❌</span><span class="li-txt danger">清空全部数据</span><span class="arrow">›</span>
@@ -47,8 +94,6 @@ function reset() {
     <div class="card list">
       <div class="li"><span class="li-ico">💰</span><span class="li-txt">预算管理</span><span class="arrow">›</span></div>
       <div class="li"><span class="li-ico">🏷️</span><span class="li-txt">分类管理</span><span class="arrow">›</span></div>
-      <div class="li"><span class="li-ico">🔔</span><span class="li-txt">记账提醒</span><span class="arrow">›</span></div>
-      <div class="li"><span class="li-ico">☁️</span><span class="li-txt">云同步</span><span class="arrow">›</span></div>
     </div>
 
     <p class="ver">小王记账 v{{ pkg.version }} · Vue3 + Capacitor</p>

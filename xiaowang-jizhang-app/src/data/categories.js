@@ -27,12 +27,23 @@ export const INCOME_CATEGORIES = [
   { id: 'other_i',    name: '其他', icon: '➕', color: '#BFBFBF' }
 ]
 
-export const ACCOUNTS = [
-  { id: 'cash',    name: '现金',   icon: '💰' },
-  { id: 'bank',    name: '银行卡', icon: '🏦' },
-  { id: 'alipay',  name: '支付宝', icon: '🅰️' },
-  { id: 'wechat',  name: '微信',   icon: '💬' },
-  { id: 'credit',  name: '信用卡', icon: '💳' }
+/* 账户一级：账户类型（内置，固定） */
+export const ACCOUNT_GROUPS = [
+  { id: 'cash',   name: '现金',   icon: '💰' },
+  { id: 'bank',   name: '银行卡', icon: '🏦' },
+  { id: 'alipay', name: '支付宝', icon: '🅰️' },
+  { id: 'wechat', name: '微信',   icon: '💬' },
+  { id: 'credit', name: '信用卡', icon: '💳' }
+]
+
+/* 账户二级：具体账号（用户可增删改）。
+ * 默认账号 id 与旧的账户类型 id 保持一致，保证已记录的流水不会错乱。 */
+export const DEFAULT_ACCOUNTS = [
+  { id: 'cash',   groupId: 'cash',   name: '现金' },
+  { id: 'bank',   groupId: 'bank',   name: '储蓄卡' },
+  { id: 'alipay', groupId: 'alipay', name: '支付宝' },
+  { id: 'wechat', groupId: 'wechat', name: '微信零钱' },
+  { id: 'credit', groupId: 'credit', name: '信用卡' }
 ]
 
 export function getCategories(type) {
@@ -43,6 +54,6 @@ export function getCategory(type, id) {
   return getCategories(type).find(c => c.id === id) || getCategories(type).slice(-1)[0]
 }
 
-export function getAccount(id) {
-  return ACCOUNTS.find(a => a.id === id) || ACCOUNTS[0]
+export function getGroup(id) {
+  return ACCOUNT_GROUPS.find(g => g.id === id) || ACCOUNT_GROUPS[0]
 }

@@ -1,7 +1,7 @@
 {
   "name": "xiaowang-jizhang",
   "private": true,
-  "version": "1.1.0",
+  "version": "1.2.0",
   "type": "module",
   "description": "小王记账 - 安卓记账 App（Vue3 + Vite + Capacitor）",
   "scripts": {
@@ -19,7 +19,8 @@
     "@capacitor/android": "^6.2.3",
     "@capacitor/cli": "^6.2.3",
     "@capacitor/core": "^6.2.3",
-    "vue": "^3.5.13"
+    "vue": "^3.5.13",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.2.1",

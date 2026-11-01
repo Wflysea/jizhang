@@ -1,10 +1,39 @@
 <script setup>
-import { computed } from 'vue'
-import { state, saveEditing, closeAdd } from '../store/ledger.js'
-import { getCategories, ACCOUNTS } from '../data/categories.js'
+import { computed, ref } from 'vue'
+import { state, saveEditing, closeAdd, accountGroups } from '../store/ledger.js'
+import { getCategories } from '../data/categories.js'
 
 const e = computed(() => state.editing)
 const cats = computed(() => getCategories(e.value.type))
+
+/* ===== 两级账户选择：一级账户类型 → 二级具体账号 ===== */
+const showPicker = ref(false)
+const curGroup = ref(null)
+
+/** 当前选中账号所属类型，未选则默认第一个有账号的类型 */
+const activeGroup = computed(() => {
+  if (curGroup.value) return curGroup.value
+  const cur = accountGroups.value.find(g => g.items.some(a => a.id === e.value.accountId))
+  return (cur || accountGroups.value.find(g => g.items.length) || accountGroups.value[0]).id
+})
+const groupAccounts = computed(() =>
+  (accountGroups.value.find(g => g.id === activeGroup.value) || {}).items || []
+)
+const accountLabel = computed(() => {
+  const g = accountGroups.value.find(x => x.items.some(a => a.id === e.value.accountId))
+  const a = g && g.items.find(x => x.id === e.value.accountId)
+  return a ? `${g.icon} ${g.name} · ${a.name}` : '选择账户'
+})
+
+function openPicker() {
+  const g = accountGroups.value.find(x => x.items.some(a => a.id === e.value.accountId))
+  curGroup.value = g ? g.id : (accountGroups.value.find(x => x.items.length) || accountGroups.value[0]).id
+  showPicker.value = true
+}
+function pickAccount(a) {
+  e.value.accountId = a.id
+  showPicker.value = false
+}
 
 const KEYS = ['7', '8', '9', '4', '5', '6', '1', '2', '3', '.', '0']
 
@@ -73,9 +102,33 @@ const displayAmount = computed(() => e.value.amount || '0')
     <div class="meta">
       <input class="note" v-model="e.note" placeholder="添加备注…" maxlength="30" />
       <input class="date" type="date" v-model="e.date" />
-      <select class="acc" v-model="e.accountId">
-        <option v-for="a in ACCOUNTS" :key="a.id" :value="a.id">{{ a.icon }} {{ a.name }}</option>
-      </select>
+      <button class="acc" @click="openPicker">{{ accountLabel }}</button>
+    </div>
+
+    <!-- 两级账户选择器 -->
+    <div v-if="showPicker" class="mask" @click="showPicker = false">
+      <div class="picker" @click.stop>
+        <div class="pk-head">选择账户</div>
+        <div class="pk-body">
+          <div class="pk-col">
+            <button
+              v-for="g in accountGroups" :key="g.id"
+              class="pk-item" :class="{ sel: g.id === activeGroup }"
+              @click="curGroup = g.id"
+            >
+              <span>{{ g.icon }}</span>{{ g.name }}
+            </button>
+          </div>
+          <div class="pk-col right">
+            <button
+              v-for="a in groupAccounts" :key="a.id"
+              class="pk-item" :class="{ sel: a.id === e.accountId }"
+              @click="pickAccount(a)"
+            >{{ a.name }}</button>
+            <p v-if="!groupAccounts.length" class="pk-empty">该类型下暂无账号<br />可在「账户」页添加</p>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- 数字键盘 -->
@@ -174,4 +227,35 @@ const displayAmount = computed(() => e.value.amount || '0')
   grid-row: span 2; height: auto;
   background: var(--brand); color: #fff; font-weight: 600; font-size: 16px;
 }
+
+/* 两级账户选择器 */
+.mask {
+  position: absolute; inset: 0; z-index: 20;
+  background: rgba(0, 0, 0, .38);
+  display: flex; align-items: flex-end;
+}
+.picker {
+  width: 100%; background: #fff; border-radius: 14px 14px 0 0;
+  max-height: 58%; display: flex; flex-direction: column;
+  animation: up .18s ease;
+}
+.pk-head {
+  padding: 12px; text-align: center; font-size: 13px;
+  color: var(--text-2); border-bottom: 1px solid var(--line);
+}
+.pk-body { flex: 1; display: flex; overflow: hidden; min-height: 150px; }
+.pk-col { width: 38%; overflow-y: auto; background: var(--bg); }
+.pk-col.right { width: 62%; background: #fff; }
+.pk-col::-webkit-scrollbar { width: 0; }
+.pk-item {
+  display: flex; align-items: center; gap: 6px; width: 100%;
+  padding: 12px 14px; font-size: 13px; text-align: left;
+}
+.pk-item.sel { background: #fff; color: var(--brand); font-weight: 600; }
+.pk-col.right .pk-item.sel { background: var(--brand-light); }
+.pk-empty {
+  font-size: 12px; color: var(--text-3);
+  padding: 24px 14px; text-align: center; line-height: 1.7;
+}
+.acc { max-width: 120px; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>

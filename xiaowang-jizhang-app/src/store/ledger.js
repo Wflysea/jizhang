@@ -1,8 +1,9 @@
 import { reactive, computed, watch } from 'vue'
-import { getCategory, ACCOUNTS } from '../data/categories.js'
+import { getCategory, ACCOUNT_GROUPS, DEFAULT_ACCOUNTS } from '../data/categories.js'
 
 const STORAGE_KEY = 'xwj_records_v1'
 const SEED_KEY = 'xwj_seeded_v1'
+const ACCOUNT_KEY = 'xwj_accounts_v1'
 
 /* ---------- 日期工具 ---------- */
 export function pad(n) { return String(n).padStart(2, '0') }
@@ -75,6 +76,18 @@ function seedRecords() {
   return list
 }
 
+/* ---------- 具体账号（二级）持久化 ---------- */
+function loadAccounts() {
+  try {
+    const raw = localStorage.getItem(ACCOUNT_KEY)
+    if (raw) {
+      const list = JSON.parse(raw)
+      if (Array.isArray(list) && list.length) return list
+    }
+  } catch (e) { /* 解析失败则回落到默认账号 */ }
+  return DEFAULT_ACCOUNTS.map(a => ({ ...a }))
+}
+
 function loadRecords() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -92,6 +105,7 @@ function loadRecords() {
 /* ---------- 全局状态 ---------- */
 export const state = reactive({
   records: loadRecords(),
+  accounts: loadAccounts(),
   month: nowMonth(),
   /** 记一笔弹层：null | { type, categoryId, amount, note, date, accountId } */
   editing: null
@@ -101,6 +115,14 @@ watch(
   () => state.records,
   (v) => {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(v)) } catch (e) { /* 忽略配额错误 */ }
+  },
+  { deep: true }
+)
+
+watch(
+  () => state.accounts,
+  (v) => {
+    try { localStorage.setItem(ACCOUNT_KEY, JSON.stringify(v)) } catch (e) { /* 忽略配额错误 */ }
   },
   { deep: true }
 )
@@ -167,15 +189,24 @@ export const trend = computed(() => {
   return out
 })
 
-/** 各账户余额（收入 - 支出） */
+/** 二级：每个具体账号的余额与流水笔数 */
 export const accountBalances = computed(() =>
-  ACCOUNTS.map(a => {
-    let balance = 0
+  state.accounts.map(a => {
+    let balance = 0, count = 0
     for (const r of state.records) {
       if (r.accountId !== a.id) continue
       balance += r.type === 'income' ? r.amount : -r.amount
+      count++
     }
-    return { ...a, balance }
+    return { ...a, balance, count }
+  })
+)
+
+/** 一级：按账户类型分组，组内包含该类型下的具体账号 */
+export const accountGroups = computed(() =>
+  ACCOUNT_GROUPS.map(g => {
+    const items = accountBalances.value.filter(a => a.groupId === g.id)
+    return { ...g, items, balance: items.reduce((s, a) => s + a.balance, 0) }
   })
 )
 
@@ -229,4 +260,31 @@ export function saveEditing() {
 export function clearAll() {
   state.records = []
   localStorage.setItem(SEED_KEY, '1')
+}
+
+/* ---------- 具体账号（二级）增删改 ---------- */
+let accSeq = 0
+
+export function addAccount(groupId, name) {
+  const n = (name || '').trim()
+  if (!n) return false
+  state.accounts.push({ id: `acc_${Date.now()}_${accSeq++}`, groupId, name: n })
+  return true
+}
+
+export function renameAccount(id, name) {
+  const a = state.accounts.find(x => x.id === id)
+  const n = (name || '').trim()
+  if (a && n) a.name = n
+}
+
+/** 删除账号：已有流水不删除，仅解除归属（明细中显示为「已删除账号」） */
+export function removeAccount(id) {
+  const i = state.accounts.findIndex(a => a.id === id)
+  if (i > -1) state.accounts.splice(i, 1)
+}
+
+export function accountName(id) {
+  const a = state.accounts.find(x => x.id === id)
+  return a ? a.name : '已删除账号'
 }

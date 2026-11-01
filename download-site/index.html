@@ -136,8 +136,8 @@ footer{text-align:center;font-size:11.5px;color:var(--text3);margin-top:26px;pad
     <h1>小王记账</h1>
     <p class="slogan">简洁好用的安卓记账本 · 一秒记一笔</p>
     <div class="badges">
-      <span class="badge">v1.1.0</span>
-      <span class="badge" id="sizeBadge">3.6 MB</span>
+      <span class="badge">v1.2.0</span>
+      <span class="badge" id="sizeBadge">3.8 MB</span>
       <span class="badge">Android 5.1+</span>
       <span class="badge">完全离线</span>
     </div>
@@ -149,7 +149,7 @@ footer{text-align:center;font-size:11.5px;color:var(--text3);margin-top:26px;pad
     <div class="meta-row">
       <div><b id="mSize">–</b>安装包</div>
       <div><b>Android 5.1+</b>系统要求</div>
-      <div><b>v1.1.0</b>版本</div>
+      <div><b>v1.2.0</b>版本</div>
     </div>
     <p class="hint">数据全部保存在手机本地，不联网、不上传，卸载前请先导出备份</p>
   </div>
@@ -161,7 +161,7 @@ footer{text-align:center;font-size:11.5px;color:var(--text3);margin-top:26px;pad
   <section>
     <h2>安装步骤</h2>
     <div class="steps">
-      <div class="step"><div class="sn">1</div><div><div class="st-t">点击上方按钮下载</div><div class="st-d">APK 文件约 3.6 MB，建议在 Wi-Fi 下下载</div></div></div>
+      <div class="step"><div class="sn">1</div><div><div class="st-t">点击上方按钮下载</div><div class="st-d">APK 文件约 3.8 MB，建议在 Wi-Fi 下下载</div></div></div>
       <div class="step"><div class="sn">2</div><div><div class="st-t">打开下载好的安装包</div><div class="st-d">可在通知栏点击，或在「文件管理 → 下载」中找到</div></div></div>
       <div class="step"><div class="sn">3</div><div><div class="st-t">允许「未知来源」并安装</div><div class="st-d">首次安装系统会提示授权，勾选允许后继续即可</div></div></div>
     </div>
@@ -173,8 +173,8 @@ footer{text-align:center;font-size:11.5px;color:var(--text3);margin-top:26px;pad
       <div class="feat"><div class="fi">✏️</div><div class="ft">一秒记一笔</div><div class="fd">支出收入切换，自定义数字键盘，14 类消费分类</div></div>
       <div class="feat"><div class="fi">📊</div><div class="ft">图表分析</div><div class="fd">环形占比图、分类排行、近半年收支趋势</div></div>
       <div class="feat"><div class="fi">📋</div><div class="ft">明细流水</div><div class="fd">按月份切换，日期分组，当日收支小计</div></div>
-      <div class="feat"><div class="fi">💳</div><div class="ft">多账户</div><div class="fd">现金/银行卡/支付宝/微信/信用卡，余额自动汇总</div></div>
-      <div class="feat"><div class="fi">📄</div><div class="ft">导出 CSV</div><div class="fd">一键导出全部账目，方便备份与分析</div></div>
+      <div class="feat"><div class="fi">💳</div><div class="ft">多账户</div><div class="fd">5 类账户下可自定义多个具体账号，余额自动汇总</div></div>
+      <div class="feat"><div class="fi">📄</div><div class="ft">导出 Excel</div><div class="fd">导出 .xlsx，含明细流水、分类汇总、月度汇总三张表</div></div>
       <div class="feat"><div class="fi">🔒</div><div class="ft">离线私密</div><div class="fd">数据仅存本地，无需注册登录</div></div>
     </div>
   </section>
@@ -223,7 +223,7 @@ function toast(msg){
   t._timer = setTimeout(function(){ t.classList.remove('show'); }, 2200);
 }
 function fmt(bytes){
-  if(!bytes) return '3.6 MB';
+  if(!bytes) return '3.8 MB';
   return (bytes/1024/1024).toFixed(1) + ' MB';
 }
 
@@ -242,7 +242,7 @@ fetch(apkUrl(), { method:'HEAD' })
 document.getElementById('dlBtn').addEventListener('click', function(){
   toast('开始下载…');
   var a = document.createElement('a');
-  a.href = apkUrl(); a.download = '小王记账-v1.1.0.apk';
+  a.href = apkUrl(); a.download = '小王记账-v1.2.0.apk';
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
 });
 
