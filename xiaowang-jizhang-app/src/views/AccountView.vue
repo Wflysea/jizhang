@@ -121,7 +121,7 @@ function del(a) {
 .arrow.up { transform: rotate(90deg); }
 
 .g-body { border-top: 1px solid var(--line); padding-bottom: 6px; }
-.acc { display: flex; align-items: center; gap: 8px; padding: 10px 0 10px 4px; border-bottom: 1px solid #F7F7F7; }
+.acc { display: flex; align-items: center; gap: 6px; padding: 8px 0 8px 4px; border-bottom: 1px solid #F7F7F7; }
 .acc:last-of-type { border-bottom: none; }
 .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--brand); flex-shrink: 0; }
 .a-info { flex: 1; min-width: 0; }
@@ -130,9 +130,15 @@ function del(a) {
 .a-bal { font-size: 13.5px; font-weight: 600; }
 .a-bal.neg, .g-bal.neg { color: var(--expense); }
 
-.op { font-size: 14px; color: var(--text-3); padding: 2px 4px; }
+/* 编辑 / 删除：图标放大到 18px，点击区 32×32 */
+.op {
+  width: 32px; height: 32px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; color: var(--text-2);
+  border-radius: 9px; background: var(--bg);
+}
 .op.danger { color: var(--expense); }
-.op:active { opacity: .5; }
+.op:active { opacity: .55; transform: scale(.94); }
 
 .none { font-size: 12px; color: var(--text-3); padding: 10px 0 10px 4px; }
 

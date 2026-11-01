@@ -33,6 +33,7 @@ export const ACCOUNT_GROUPS = [
   { id: 'credit',    name: '信用卡账户', icon: '💳' },
   { id: 'financial', name: '金融账户', icon: '🏦' },
   { id: 'virtual',   name: '虚拟账户', icon: '📱' },
+  { id: 'invest',    name: '投资账户', icon: '📈' },
   { id: 'debt',      name: '负债账户', icon: '📉' }
 ]
 
@@ -45,6 +46,7 @@ export const DEFAULT_ACCOUNTS = [
   { id: 'fund',   groupId: 'financial', name: '理财账户' },
   { id: 'alipay', groupId: 'virtual',   name: '支付宝' },
   { id: 'wechat', groupId: 'virtual',   name: '微信零钱' },
+  { id: 'stock',  groupId: 'invest',    name: '证券账户' },
   { id: 'debt',   groupId: 'debt',      name: '借款' }
 ]
 

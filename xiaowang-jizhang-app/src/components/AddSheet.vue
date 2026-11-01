@@ -1,7 +1,7 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, nextTick } from 'vue'
 import {
-  state, saveEditing, closeAdd, removeEditing, accountGroups
+  state, saveEditing, closeAdd, removeEditing, accountGroups, addAccount
 } from '../store/ledger.js'
 import { getCategories } from '../data/categories.js'
 
@@ -11,7 +11,7 @@ const cats = computed(() => getCategories(e.value.type))
 /* 每次打开（新增 / 编辑）都重置两级账户选择器 */
 watch(
   () => state.editing,
-  () => { showPicker.value = false; curGroup.value = null }
+  () => { showPicker.value = false; curGroup.value = null; inlineAdd.value = false }
 )
 
 /* ===== 两级账户选择：一级账户类型 → 二级具体账号 ===== */
@@ -37,9 +37,33 @@ function openPicker() {
   const g = accountGroups.value.find(x => x.items.some(a => a.id === e.value.accountId))
   curGroup.value = g ? g.id : (accountGroups.value.find(x => x.items.length) || accountGroups.value[0]).id
   showPicker.value = true
+  inlineAdd.value = false
 }
 function pickAccount(a) {
   e.value.accountId = a.id
+  showPicker.value = false
+}
+
+/* ===== 记账页内直接新建二级账号 ===== */
+const inlineAdd = ref(false)
+const newAccName = ref('')
+const newAccInput = ref(null)
+
+function startInlineAdd() {
+  inlineAdd.value = true
+  newAccName.value = ''
+  nextTick(() => newAccInput.value && newAccInput.value.focus())
+}
+function cancelInlineAdd() {
+  inlineAdd.value = false
+  newAccName.value = ''
+}
+function confirmInlineAdd() {
+  const id = addAccount(activeGroup.value, newAccName.value)
+  if (!id) return
+  e.value.accountId = id      // 新建后即选中
+  curGroup.value = activeGroup.value
+  cancelInlineAdd()
   showPicker.value = false
 }
 
@@ -138,7 +162,23 @@ const displayAmount = computed(() => e.value.amount || '0')
               class="pk-item" :class="{ sel: a.id === e.accountId }"
               @click="pickAccount(a)"
             >{{ a.name }}</button>
-            <p v-if="!groupAccounts.length" class="pk-empty">该类型下暂无账号<br />可在「账户」页添加</p>
+            <p v-if="!groupAccounts.length && !inlineAdd" class="pk-empty">
+              该类型下暂无账号<br />可直接新建
+            </p>
+
+            <!-- 记账页内新建账号 -->
+            <div v-if="inlineAdd" class="pk-new">
+              <input
+                ref="newAccInput" v-model="newAccName" class="pk-inp"
+                placeholder="账号名称，如：招行储蓄卡" maxlength="16"
+                @keyup.enter="confirmInlineAdd"
+              />
+              <div class="pk-btns">
+                <button class="pk-btn ok" @click="confirmInlineAdd">添加</button>
+                <button class="pk-btn" @click="cancelInlineAdd">取消</button>
+              </div>
+            </div>
+            <button v-else class="pk-add" @click="startInlineAdd">＋ 新建账号</button>
           </div>
         </div>
       </div>
@@ -271,5 +311,20 @@ const displayAmount = computed(() => e.value.amount || '0')
   font-size: 12px; color: var(--text-3);
   padding: 24px 14px; text-align: center; line-height: 1.7;
 }
+/* 选择器内新建账号 */
+.pk-add {
+  width: 100%; text-align: left;
+  font-size: 13px; color: var(--brand); font-weight: 600;
+  padding: 12px 14px; border-top: 1px solid var(--line);
+}
+.pk-add:active { background: var(--brand-light); }
+.pk-new { padding: 10px 12px; border-top: 1px solid var(--line); }
+.pk-inp {
+  width: 100%; font-size: 13px; padding: 9px 10px;
+  background: var(--bg); border-radius: 8px;
+}
+.pk-btns { display: flex; gap: 8px; margin-top: 8px; }
+.pk-btn { flex: 1; font-size: 13px; padding: 8px 0; border-radius: 8px; background: var(--bg); color: var(--text-2); }
+.pk-btn.ok { background: var(--brand); color: #fff; font-weight: 600; }
 .acc { max-width: 120px; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>

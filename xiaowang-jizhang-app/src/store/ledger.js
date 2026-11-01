@@ -323,11 +323,13 @@ export function clearAll() {
 /* ---------- 具体账号（二级）增删改 ---------- */
 let accSeq = 0
 
+/** 返回新账号 id（名称为空时返回 null） */
 export function addAccount(groupId, name) {
   const n = (name || '').trim()
-  if (!n) return false
-  state.accounts.push({ id: `acc_${Date.now()}_${accSeq++}`, groupId, name: n })
-  return true
+  if (!n) return null
+  const id = `acc_${Date.now()}_${accSeq++}`
+  state.accounts.push({ id, groupId, name: n })
+  return id
 }
 
 export function renameAccount(id, name) {
