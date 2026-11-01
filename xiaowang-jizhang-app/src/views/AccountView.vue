@@ -9,6 +9,7 @@ import {
   exportAccountsJson, exportAccountsXlsx,
   parseAccountsFile, applyImport, pickFile
 } from '../utils/accountIO.js'
+import { exportToast } from '../utils/fileExport.js'
 
 const net = computed(() => accountBalances.value.reduce((a, b) => a + b.balance, 0))
 
@@ -89,18 +90,19 @@ function toast(msg) {
   setTimeout(() => { toastMsg.value = '' }, 2200)
 }
 
-function doExport(kind) {
+async function doExport(kind) {
   if (!accountBalances.value.length) {
     alert('还没有任何账户可导出，请先添加账号')
     return
   }
   try {
-    const n = kind === 'json'
+    const r = kind === 'json'
       ? exportAccountsJson(accountBalances.value)
       : exportAccountsXlsx(accountBalances.value)
-    toast(`已导出 ${n} 个账号`)
+    const res = await r.file
+    toast(`${exportToast(res, r.name)}（${r.count} 个账号）`)
   } catch (e) {
-    alert('导出失败：' + e.message)
+    alert('导出失败：' + (e.message || e))
   }
 }
 

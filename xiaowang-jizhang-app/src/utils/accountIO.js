@@ -6,6 +6,7 @@
 import * as XLSX from 'xlsx'
 import { state } from '../store/ledger.js'
 import { ACCOUNT_GROUPS, normalizeGroupId } from '../data/categories.js'
+import { exportFile, utf8ToBase64 } from './fileExport.js'
 
 const FILE_TAG = 'xiaowang-jizhang-accounts'
 
@@ -18,18 +19,6 @@ function stamp() {
 function groupNameOf(groupId) {
   const g = ACCOUNT_GROUPS.find(x => x.id === groupId)
   return g ? g.name : ''
-}
-
-/** 触发浏览器下载 */
-function download(blob, filename) {
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
 /* ---------- 导出 ---------- */
@@ -50,9 +39,9 @@ export function exportAccountsJson(balances) {
       balance: Math.round((balMap.get(a.id) || 0) * 100) / 100
     }))
   }
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8' })
-  download(blob, `小王记账_账户_${stamp()}.json`)
-  return data.accounts.length
+  const name = `小王记账_账户_${stamp()}.json`
+  const b64 = utf8ToBase64(JSON.stringify(data, null, 2))
+  return { file: exportFile(name, b64, 'application/json'), name, count: data.accounts.length }
 }
 
 /** 导出为 Excel（便于在电脑上查看 / 批量编辑后再导入） */
@@ -67,8 +56,10 @@ export function exportAccountsXlsx(balances) {
   const ws = XLSX.utils.json_to_sheet(rows)
   ws['!cols'] = [{ wch: 14 }, { wch: 20 }, { wch: 12 }, { wch: 10 }]
   XLSX.utils.book_append_sheet(wb, ws, '账户')
-  XLSX.writeFile(wb, `小王记账_账户_${stamp()}.xlsx`)
-  return rows.length
+
+  const name = `小王记账_账户_${stamp()}.xlsx`
+  const b64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' })
+  return { file: exportFile(name, b64, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'), name, count: rows.length }
 }
 
 /* ---------- 导入 ---------- */

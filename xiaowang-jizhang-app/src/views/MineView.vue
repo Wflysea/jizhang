@@ -2,10 +2,11 @@
 import * as XLSX from 'xlsx'
 import { state, clearAll, accountName, loadSample } from '../store/ledger.js'
 import { getCategory } from '../data/categories.js'
+import { exportFile, exportToast } from '../utils/fileExport.js'
 import pkg from '../../package.json'
 
 /* 导出 Excel：明细流水 + 分类汇总 + 月度汇总 三张工作表 */
-function exportXlsx() {
+async function exportXlsx() {
   if (!state.records.length) {
     alert('还没有任何账目可导出')
     return
@@ -62,7 +63,19 @@ function exportXlsx() {
 
   const d = new Date()
   const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`
-  XLSX.writeFile(wb, `小王记账_导出_${stamp}.xlsx`)
+  const name = `小王记账_导出_${stamp}.xlsx`
+
+  try {
+    // 安卓 App 内走系统分享面板导出（WebView 下载不可用）
+    const b64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' })
+    const res = await exportFile(
+      name, b64,
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    alert(exportToast(res, name))
+  } catch (e) {
+    alert('导出失败：' + (e.message || e))
+  }
 }
 
 function reset() {
