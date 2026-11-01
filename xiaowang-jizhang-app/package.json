@@ -1,22 +1,24 @@
 {
-  "name": "suishouji-clone",
+  "name": "xiaowang-jizhang",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
-  "description": "随手记复刻版 - 安卓记账 App（Vue3 + Vite + Capacitor）",
+  "description": "小王记账 - 安卓记账 App（Vue3 + Vite + Capacitor）",
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 5173",
-    "build": "vite build",
+    "sync-version": "node scripts/sync-version.cjs",
+    "build": "npm run sync-version && vite build",
     "preview": "vite preview --host 0.0.0.0 --port 4173",
+    "bump": "npm version patch --no-git-tag-version && npm run sync-version",
+    "bump:minor": "npm version minor --no-git-tag-version && npm run sync-version",
     "android:sync": "npm run build && cap sync android",
     "android:open": "cap open android",
-    "android:apk": "npm run build && cap sync android && cd android && ./gradlew assembleDebug"
+    "android:apk": "npm run build && cap sync android && cd android && gradle assembleDebug"
   },
   "dependencies": {
     "@capacitor/android": "^6.2.3",
     "@capacitor/cli": "^6.2.3",
     "@capacitor/core": "^6.2.3",
-    "@fontsource/noto-color-emoji": "^5.3.2",
     "vue": "^3.5.13"
   },
   "devDependencies": {

@@ -1,5 +1,6 @@
 <script setup>
 import { state, clearAll } from '../store/ledger.js'
+import pkg from '../../package.json'
 
 function exportCsv() {
   const head = '日期,类型,分类,金额,账户,备注\n'
@@ -12,7 +13,7 @@ function exportCsv() {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `随手记_导出_${new Date().toISOString().slice(0, 10)}.csv`
+  a.download = `小王记账_导出_${new Date().toISOString().slice(0, 10)}.csv`
   a.click()
   URL.revokeObjectURL(url)
 }
@@ -50,7 +51,7 @@ function reset() {
       <div class="li"><span class="li-ico">☁️</span><span class="li-txt">云同步</span><span class="arrow">›</span></div>
     </div>
 
-    <p class="ver">随手记复刻版 v1.0 · Vue3 + Capacitor</p>
+    <p class="ver">小王记账 v{{ pkg.version }} · Vue3 + Capacitor</p>
   </div>
 </template>
 

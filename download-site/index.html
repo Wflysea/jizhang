@@ -4,8 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <meta name="theme-color" content="#FF9500" />
-<meta name="description" content="随手记安卓版下载 —— 简洁好用的本地记账本，离线可用，一秒记一笔。" />
-<title>随手记 · 安卓版下载</title>
+<meta name="description" content="小王记账安卓版下载 —— 简洁好用的本地记账本，离线可用，一秒记一笔。" />
+<title>小王记账 · 安卓版下载</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='24' fill='%23FF9500'/><text y='72' x='50' font-size='62' text-anchor='middle'>💰</text></svg>" />
 <style>
 :root{
@@ -133,11 +133,11 @@ footer{text-align:center;font-size:11.5px;color:var(--text3);margin-top:26px;pad
 
   <header class="hero">
     <div class="logo">💰</div>
-    <h1>随手记</h1>
+    <h1>小王记账</h1>
     <p class="slogan">简洁好用的安卓记账本 · 一秒记一笔</p>
     <div class="badges">
-      <span class="badge">v1.0</span>
-      <span class="badge" id="sizeBadge">17 MB</span>
+      <span class="badge">v1.1.0</span>
+      <span class="badge" id="sizeBadge">3.6 MB</span>
       <span class="badge">Android 5.1+</span>
       <span class="badge">完全离线</span>
     </div>
@@ -149,7 +149,7 @@ footer{text-align:center;font-size:11.5px;color:var(--text3);margin-top:26px;pad
     <div class="meta-row">
       <div><b id="mSize">–</b>安装包</div>
       <div><b>Android 5.1+</b>系统要求</div>
-      <div><b>v1.0</b>版本</div>
+      <div><b>v1.1.0</b>版本</div>
     </div>
     <p class="hint">数据全部保存在手机本地，不联网、不上传，卸载前请先导出备份</p>
   </div>
@@ -161,7 +161,7 @@ footer{text-align:center;font-size:11.5px;color:var(--text3);margin-top:26px;pad
   <section>
     <h2>安装步骤</h2>
     <div class="steps">
-      <div class="step"><div class="sn">1</div><div><div class="st-t">点击上方按钮下载</div><div class="st-d">APK 文件约 17 MB，建议在 Wi-Fi 下下载</div></div></div>
+      <div class="step"><div class="sn">1</div><div><div class="st-t">点击上方按钮下载</div><div class="st-d">APK 文件约 3.6 MB，建议在 Wi-Fi 下下载</div></div></div>
       <div class="step"><div class="sn">2</div><div><div class="st-t">打开下载好的安装包</div><div class="st-d">可在通知栏点击，或在「文件管理 → 下载」中找到</div></div></div>
       <div class="step"><div class="sn">3</div><div><div class="st-t">允许「未知来源」并安装</div><div class="st-d">首次安装系统会提示授权，勾选允许后继续即可</div></div></div>
     </div>
@@ -193,7 +193,7 @@ footer{text-align:center;font-size:11.5px;color:var(--text3);margin-top:26px;pad
     <h2>版本信息</h2>
     <div class="about">
       <div class="kv"><span>版本号</span><b>1.0</b></div>
-      <div class="kv"><span>包名</span><b>com.suishouji.clone</b></div>
+      <div class="kv"><span>包名</span><b>com.xiaowang.jizhang</b></div>
       <div class="kv"><span>目标系统</span><b>Android 14 (API 34)</b></div>
       <div class="kv"><span>最低系统</span><b>Android 5.1 (API 22)</b></div>
       <div class="kv"><span>技术栈</span><b>Vue 3 + Capacitor 6</b></div>
@@ -201,13 +201,13 @@ footer{text-align:center;font-size:11.5px;color:var(--text3);margin-top:26px;pad
     </div>
   </section>
 
-  <footer>随手记复刻版 · 仅供学习交流使用</footer>
+  <footer>小王记账 · 仅供学习交流使用</footer>
 </div>
 
 <div class="toast" id="toast"></div>
 
 <script>
-var APK = 'suishouji.apk';
+var APK = 'xiaowang-jizhang.apk';
 
 /* 生成 APK 绝对地址，并继承当前页面查询参数（如 sharecode），否则会被访问控制拦截 */
 function apkUrl(){
@@ -223,7 +223,7 @@ function toast(msg){
   t._timer = setTimeout(function(){ t.classList.remove('show'); }, 2200);
 }
 function fmt(bytes){
-  if(!bytes) return '17 MB';
+  if(!bytes) return '3.6 MB';
   return (bytes/1024/1024).toFixed(1) + ' MB';
 }
 
@@ -242,7 +242,7 @@ fetch(apkUrl(), { method:'HEAD' })
 document.getElementById('dlBtn').addEventListener('click', function(){
   toast('开始下载…');
   var a = document.createElement('a');
-  a.href = apkUrl(); a.download = '随手记-v1.0.apk';
+  a.href = apkUrl(); a.download = '小王记账-v1.1.0.apk';
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
 });
 

@@ -1,8 +1,8 @@
 import { reactive, computed, watch } from 'vue'
 import { getCategory, ACCOUNTS } from '../data/categories.js'
 
-const STORAGE_KEY = 'ssj_records_v1'
-const SEED_KEY = 'ssj_seeded_v1'
+const STORAGE_KEY = 'xwj_records_v1'
+const SEED_KEY = 'xwj_seeded_v1'
 
 /* ---------- 日期工具 ---------- */
 export function pad(n) { return String(n).padStart(2, '0') }

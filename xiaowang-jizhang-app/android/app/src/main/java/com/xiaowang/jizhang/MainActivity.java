@@ -1,4 +1,4 @@
-package com.suishouji.clone;
+package com.xiaowang.jizhang;
 
 import com.getcapacitor.BridgeActivity;
 
