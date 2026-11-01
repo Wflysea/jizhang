@@ -3,6 +3,11 @@ import {
   getCategory, ACCOUNT_GROUPS, DEFAULT_ACCOUNTS, normalizeGroupId
 } from '../data/categories.js'
 
+/** 金额格式化：1234.5 → 1,234.50 */
+export function money(n) {
+  return (Math.round(n * 100) / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+}
+
 const STORAGE_KEY = 'xwj_records_v1'
 const SEED_KEY = 'xwj_seeded_v1'
 const ACCOUNT_KEY = 'xwj_accounts_v1'
@@ -235,6 +240,45 @@ export function addRecord(rec) {
 export function removeRecord(id) {
   const i = state.records.findIndex(r => r.id === id)
   if (i > -1) state.records.splice(i, 1)
+}
+
+/** 单个账号当前余额（收入 - 支出） */
+export function accountBalanceOf(id) {
+  let balance = 0
+  for (const r of state.records) {
+    if (r.accountId !== id) continue
+    balance += r.type === 'income' ? r.amount : -r.amount
+  }
+  return Math.round(balance * 100) / 100
+}
+
+/**
+ * 手动调整账号余额：按「新余额 - 当前余额」的差额生成一条「余额调整」流水。
+ * 调增记为收入、调减记为支出，保证余额与流水始终自洽。
+ * @returns {null|{delta:number, id:string}} 差额为 0 或输入非法时返回 null
+ */
+export function adjustBalance(accountId, target, date, note) {
+  const to = parseFloat(target)
+  if (isNaN(to)) return null
+
+  const from = accountBalanceOf(accountId)
+  const delta = Math.round((to - from) * 100) / 100
+  if (Math.abs(delta) < 0.005) return null
+
+  const type = delta > 0 ? 'income' : 'expense'
+  const id = `${Date.now()}_${seq}_adj`
+  addRecord({
+    id,
+    type,
+    amount: Math.abs(delta),
+    categoryId: type === 'income' ? 'adjust_i' : 'adjust_e',
+    accountId,
+    note: (note || '').trim() || `余额调整 ${money(from)} → ${money(to)}`,
+    date: date || today(),
+    adjust: true
+  })
+  state.month = (date || today()).slice(0, 7)
+  return { id, delta, from, to }
 }
 
 export function openAdd(type = 'expense') {

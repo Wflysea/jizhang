@@ -13,7 +13,9 @@ export const EXPENSE_CATEGORIES = [
   { id: 'travel',     name: '旅行', icon: '✈️', color: '#36CFC9' },
   { id: 'sport',      name: '运动', icon: '⚽', color: '#73D13D' },
   { id: 'pet',        name: '宠物', icon: '🐱', color: '#FFA940' },
-  { id: 'other_e',    name: '其他', icon: '📦', color: '#BFBFBF' }
+  { id: 'other_e',    name: '其他', icon: '📦', color: '#BFBFBF' },
+  // 手动调整账户余额时自动生成，不计入日常开销
+  { id: 'adjust_e',   name: '余额调整', icon: '⚖️', color: '#8C8C8C' }
 ]
 
 export const INCOME_CATEGORIES = [
@@ -24,7 +26,9 @@ export const INCOME_CATEGORIES = [
   { id: 'redpacket',  name: '红包', icon: '🧧', color: '#F5453D' },
   { id: 'reimburse',  name: '报销', icon: '🧾', color: '#9254DE' },
   { id: 'rent_i',     name: '租金', icon: '🏡', color: '#7C6BFF' },
-  { id: 'other_i',    name: '其他', icon: '➕', color: '#BFBFBF' }
+  { id: 'other_i',    name: '其他', icon: '➕', color: '#BFBFBF' },
+  // 手动调整账户余额时自动生成
+  { id: 'adjust_i',   name: '余额调整', icon: '⚖️', color: '#8C8C8C' }
 ]
 
 /* 账户一级：账户类型（内置，固定） */
@@ -95,7 +99,16 @@ export function getCategories(type) {
 }
 
 export function getCategory(type, id) {
-  return getCategories(type).find(c => c.id === id) || getCategories(type).slice(-1)[0]
+  const list = getCategories(type)
+  // 兜底优先落到「其他」，避免落到「余额调整」这类特殊分类
+  return list.find(c => c.id === id)
+    || list.find(c => c.id.startsWith('other_'))
+    || list[0]
+}
+
+/** 是否为余额调整流水（手动改余额生成，非真实收支） */
+export function isAdjust(r) {
+  return r.categoryId === 'adjust_i' || r.categoryId === 'adjust_e'
 }
 
 export function getGroup(id) {
