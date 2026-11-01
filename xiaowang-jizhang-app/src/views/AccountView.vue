@@ -90,6 +90,10 @@ function toast(msg) {
 }
 
 function doExport(kind) {
+  if (!accountBalances.value.length) {
+    alert('还没有任何账户可导出，请先添加账号')
+    return
+  }
   try {
     const n = kind === 'json'
       ? exportAccountsJson(accountBalances.value)
@@ -143,6 +147,16 @@ function confirmImport(mode) {
     </div>
 
     <div class="section-title">我的账户</div>
+
+    <!-- 全新安装：没有任何账号时的引导 -->
+    <div v-if="!accountBalances.length" class="guide">
+      <div class="gd-ico">🗂️</div>
+      <p class="gd-t">还没有任何账户</p>
+      <p class="gd-d">
+        在下方任一账户类型里点「＋添加…账号」即可开始，<br />
+        也可以从 JSON / Excel 批量导入
+      </p>
+    </div>
 
     <div v-for="g in accountGroups" :key="g.id" class="card group">
       <!-- 一级：账户类型 -->
@@ -298,6 +312,12 @@ function confirmImport(mode) {
 .lab { font-size: 12px; opacity: .85; }
 .net { font-size: 28px; font-weight: 600; }
 .cnt { font-size: 11px; opacity: .8; }
+
+/* 全新安装引导 */
+.guide { text-align: center; padding: 22px 18px 26px; }
+.gd-ico { font-size: 40px; margin-bottom: 10px; }
+.gd-t { font-size: 14.5px; font-weight: 600; color: var(--text-1); margin-bottom: 6px; }
+.gd-d { font-size: 12px; color: var(--text-3); line-height: 1.8; }
 
 /* 导入导出按钮行 */
 .io-bar {

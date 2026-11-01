@@ -41,45 +41,11 @@ export const ACCOUNT_GROUPS = [
   { id: 'debt',      name: '负债账户', icon: '📉' }
 ]
 
-/* 账户二级：具体账号（用户可增删改）。
- * 默认账号 id 沿用历史 id，保证已记录的流水归属不会错乱。
- * 账号清单参照随手记典型账户结构整理。 */
-export const DEFAULT_ACCOUNTS = [
-  // 现金账户
-  { id: 'cash',      groupId: 'cash',      name: '现金' },
-  // 信用卡账户（含图中「贷记卡账户」）
-  { id: 'credit',    groupId: 'credit',    name: '信用卡' },
-  { id: 'huabei',    groupId: 'credit',    name: '蚂蚁花呗' },
-  { id: 'citic8890', groupId: 'credit',    name: '中信银行8890' },
-  { id: 'ccb5262',   groupId: 'credit',    name: '建设银行5262' },
-  { id: 'cmb1555',   groupId: 'credit',    name: '招商银行1555' },
-  { id: 'dymonthly', groupId: 'credit',    name: '抖音月付' },
-  { id: 'boc7244',   groupId: 'credit',    name: '中国银行7244' },
-  { id: 'psbc8447',  groupId: 'credit',    name: '邮政银行8447' },
-  { id: 'xiaoshige', groupId: 'credit',    name: '小湿哥' },
-  // 金融账户
-  { id: 'bank',      groupId: 'financial', name: '储蓄卡' },
-  { id: 'ccb7790',   groupId: 'financial', name: '建设银行7790' },
-  { id: 'psbc0627',  groupId: 'financial', name: '邮政银行0627' },
-  { id: 'boc7587',   groupId: 'financial', name: '中国银行7587' },
-  { id: 'abc3910',   groupId: 'financial', name: '农业银行3910' },
-  { id: 'cmb1317',   groupId: 'financial', name: '招商银行1317' },
-  { id: 'mybank296', groupId: 'financial', name: '网商银行296' },
-  { id: 'fund',      groupId: 'financial', name: '理财账户' },
-  // 虚拟账户
-  { id: 'wechat',    groupId: 'virtual',   name: '微信零钱' },
-  { id: 'alipay',    groupId: 'virtual',   name: '支付宝' },
-  { id: 'yibao',     groupId: 'virtual',   name: '医保卡' },
-  { id: 'phonefee',  groupId: 'virtual',   name: '手机费' },
-  { id: 'gascard',   groupId: 'virtual',   name: '华联石化加油卡' },
-  { id: 'lifaka',    groupId: 'virtual',   name: '理发卡' },
-  // 投资账户
-  { id: 'stock',     groupId: 'invest',    name: '证券账户' },
-  { id: 'fundzfb',   groupId: 'invest',    name: '支付宝基金' },
-  // 负债账户
-  { id: 'mortgage',  groupId: 'debt',      name: '房贷' },
-  { id: 'debt',      groupId: 'debt',      name: '借款' }
-]
+/* 账户二级：具体账号（用户自建）。
+ * 新安装不再预置任何具体账号 —— 只保留一级账户类型，
+ * 用户按需在各类型下自行添加（也可在记账页直接新建、或从 JSON/Excel 导入）。
+ * 老版本升级时已存在的账号不受影响，仍会完整保留。 */
+export const DEFAULT_ACCOUNTS = []
 
 /* v1.2 及更早版本的 groupId 与账户类型 id 同名，
  * 升级到新的五大账户类型后需要把已有账号迁移到对应分组。 */

@@ -9,7 +9,6 @@ export function money(n) {
 }
 
 const STORAGE_KEY = 'xwj_records_v1'
-const SEED_KEY = 'xwj_seeded_v1'
 const ACCOUNT_KEY = 'xwj_accounts_v1'
 
 /* ---------- 日期工具 ---------- */
@@ -30,8 +29,12 @@ export function shiftMonth(month, delta) {
   return fmtMonth(d)
 }
 
-/* ---------- 示例数据：首次启动填充，保证图表不为空 ---------- */
-function seedRecords() {
+/* ---------- 示例数据：由「我的」页手动载入，新安装不再自动生成 ---------- */
+function seedRecords(accounts) {
+  const pool = (accounts || []).map(a => a.id)
+  if (!pool.length) return []
+  const pickAccount = () => pool[Math.floor(Math.random() * pool.length)]
+
   const list = []
   const base = new Date()
   const expensePool = [
@@ -52,7 +55,7 @@ function seedRecords() {
     // 每月固定工资
     list.push({
       id: `s_${m}_salary`, type: 'income', amount: Math.round(rand(9500, 12500)),
-      categoryId: 'salary', accountId: 'bank',
+      categoryId: 'salary', accountId: pickAccount(),
       date: fmtDate(new Date(d.getFullYear(), d.getMonth(), Math.min(10, maxDay))),
       note: '月薪', createdAt: Date.now()
     })
@@ -65,7 +68,7 @@ function seedRecords() {
       list.push({
         id: `s_${m}_${i}`, type: 'expense',
         amount: Math.round(rand(lo, hi) * 100) / 100,
-        categoryId: cid, accountId: pick(['alipay', 'wechat', 'bank', 'cash']),
+        categoryId: cid, accountId: pickAccount(),
         date, note: '', createdAt: Date.now()
       })
     }
@@ -74,7 +77,7 @@ function seedRecords() {
       list.push({
         id: `s_${m}_bonus`, type: 'income',
         amount: Math.round(rand(lo, hi)),
-        categoryId: cid, accountId: 'alipay',
+        categoryId: cid, accountId: pickAccount(),
         date: fmtDate(new Date(d.getFullYear(), d.getMonth(), 1 + Math.floor(Math.random() * maxDay))),
         note: '', createdAt: Date.now()
       })
@@ -109,13 +112,7 @@ function loadRecords() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) return JSON.parse(raw)
-  } catch (e) { /* 解析失败则回落到示例数据 */ }
-  if (!localStorage.getItem(SEED_KEY)) {
-    const seeded = seedRecords()
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(seeded))
-    localStorage.setItem(SEED_KEY, '1')
-    return seeded
-  }
+  } catch (e) { /* 解析失败则按空账本处理 */ }
   return []
 }
 
@@ -318,10 +315,22 @@ export function duplicateRecord(id) {
   return newId
 }
 
-/** 默认选中账号：优先微信零钱，缺失时取第一个账号 */
+/** 默认选中账号：优先微信零钱，缺失时取第一个账号；无账号时为空（需用户先添加） */
 function defaultAccountId() {
   const list = state.accounts
   return (list.find(a => a.id === 'wechat') || list[0] || {}).id || ''
+}
+
+/**
+ * 载入示例数据（「我的」页手动触发），用于快速体验图表效果。
+ * @returns {number} 生成的笔数；无账号时返回 0
+ */
+export function loadSample() {
+  if (!state.accounts.length) return 0
+  const seeded = seedRecords(state.accounts)
+  state.records = seeded
+  state.month = nowMonth()
+  return seeded.length
 }
 
 export function closeAdd() { state.editing = null }
@@ -331,6 +340,7 @@ export function saveEditing() {
   if (!e) return false
   const amount = parseFloat(e.amount)
   if (!amount || amount <= 0) return false
+  if (!e.accountId) return false   // 未选择账户（新安装未添加账号时）
   const payload = {
     type: e.type,
     amount: Math.round(amount * 100) / 100,
@@ -361,7 +371,6 @@ export function removeEditing() {
 
 export function clearAll() {
   state.records = []
-  localStorage.setItem(SEED_KEY, '1')
 }
 
 /* ---------- 具体账号（二级）增删改 ---------- */

@@ -94,6 +94,11 @@ function pickType(t) {
 }
 
 function save() {
+  if (!e.value.accountId) {
+    alert('还没有账户，请先选择或新建一个账户')
+    openPicker()
+    return
+  }
   const ok = saveEditing()
   if (!ok) { /* 金额为 0 时不保存，交由 UI 提示 */ e.value.amount = '' }
 }
