@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#FF9500" />
+<meta name="description" content="随手记安卓版下载 —— 简洁好用的本地记账本，离线可用，一秒记一笔。" />
+<title>随手记 · 安卓版下载</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='24' fill='%23FF9500'/><text y='72' x='50' font-size='62' text-anchor='middle'>💰</text></svg>" />
+<style>
+:root{
+  --brand:#FF9500; --brand-dark:#F08000; --brand-light:#FFF3E0;
+  --income:#00B578; --expense:#F5453D;
+  --bg:#F7F8FA; --card:#fff; --text:#1A1A1A; --text2:#666; --text3:#9A9A9A; --line:#EFEFEF;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",Arial,sans-serif;
+  background:var(--bg); color:var(--text); line-height:1.6; font-size:14px;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:520px;margin:0 auto;padding:0 0 40px;background:var(--bg);min-height:100vh}
+
+/* ---------- Hero ---------- */
+.hero{
+  background:linear-gradient(160deg,#FFB400,#FF8A00);
+  color:#fff;padding:36px 20px 44px;text-align:center;
+}
+.logo{
+  width:82px;height:82px;border-radius:22px;margin:0 auto 14px;
+  background:rgba(255,255,255,.22);
+  display:flex;align-items:center;justify-content:center;font-size:44px;
+  box-shadow:0 8px 24px rgba(0,0,0,.14);
+}
+h1{font-size:26px;font-weight:700;letter-spacing:1px}
+.slogan{font-size:13px;opacity:.92;margin-top:6px}
+.badges{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{
+  background:rgba(255,255,255,.2);border-radius:20px;padding:5px 13px;font-size:12px;
+}
+
+/* ---------- 下载卡 ---------- */
+.dl-card{
+  background:var(--card);border-radius:16px;margin:-24px 16px 0;padding:22px 18px;
+  box-shadow:0 6px 24px rgba(0,0,0,.09);position:relative;
+}
+.dl-main{
+  display:flex;align-items:center;justify-content:center;gap:9px;
+  width:100%;padding:15px;border-radius:12px;border:none;
+  background:linear-gradient(135deg,#FFB400,var(--brand-dark));color:#fff;
+  font-size:17px;font-weight:600;box-shadow:0 5px 16px rgba(255,149,0,.4);
+  transition:transform .12s;
+}
+.dl-main:active{transform:scale(.975)}
+.dl-sub{
+  display:flex;align-items:center;justify-content:center;gap:7px;
+  width:100%;margin-top:10px;padding:11px;border-radius:12px;
+  background:var(--brand-light);color:var(--brand-dark);font-size:13px;font-weight:500;
+}
+.meta-row{
+  display:flex;justify-content:center;gap:18px;margin-top:16px;
+  padding-top:14px;border-top:1px solid var(--line);font-size:12px;color:var(--text2);
+}
+.meta-row b{display:block;color:var(--text);font-size:14px;font-weight:600}
+.hint{
+  margin-top:12px;font-size:11.5px;color:var(--text3);text-align:center;line-height:1.5;
+}
+.ios-note{
+  display:none;margin:14px 16px 0;padding:12px 14px;border-radius:12px;
+  background:#FFF4E5;color:#8A5A00;font-size:12.5px;border:1px solid #FFE0B2;
+}
+
+/* ---------- 区块 ---------- */
+section{margin-top:26px;padding:0 16px}
+h2{font-size:16px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:7px}
+h2::before{content:"";width:3px;height:15px;border-radius:2px;background:var(--brand)}
+
+/* 安装步骤 */
+.steps{background:var(--card);border-radius:14px;padding:6px 16px}
+.step{display:flex;gap:12px;padding:13px 0;border-bottom:1px solid var(--line)}
+.step:last-child{border-bottom:none}
+.sn{
+  width:24px;height:24px;flex-shrink:0;border-radius:50%;
+  background:var(--brand);color:#fff;font-size:12px;font-weight:600;
+  display:flex;align-items:center;justify-content:center;margin-top:2px;
+}
+.st-t{font-size:13.5px;font-weight:500}
+.st-d{font-size:12px;color:var(--text2);margin-top:2px}
+
+/* 功能 */
+.feats{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.feat{
+  background:var(--card);border-radius:14px;padding:14px 12px;
+  border:1px solid var(--line);
+}
+.feat .fi{font-size:24px}
+.feat .ft{font-size:13.5px;font-weight:600;margin-top:7px}
+.feat .fd{font-size:11.5px;color:var(--text2);margin-top:3px;line-height:1.5}
+
+/* 截图横滑 */
+.shots{
+  display:flex;gap:12px;overflow-x:auto;padding:4px 0 12px;
+  scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;
+}
+.shots::-webkit-scrollbar{height:0}
+.shot{
+  flex:0 0 62%;scroll-snap-align:center;border-radius:14px;overflow:hidden;
+  background:var(--card);box-shadow:0 4px 14px rgba(0,0,0,.1);
+}
+.shot img{width:100%;display:block}
+.shot .cap{font-size:11.5px;color:var(--text2);padding:8px 10px;text-align:center}
+
+/* 关于 */
+.about{background:var(--card);border-radius:14px;padding:4px 16px;font-size:12.5px}
+.kv{display:flex;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--line)}
+.kv:last-child{border-bottom:none}
+.kv span{color:var(--text2)}
+.kv b{font-weight:500;color:var(--text);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
+
+footer{text-align:center;font-size:11.5px;color:var(--text3);margin-top:26px;padding:0 20px}
+
+/* Toast */
+.toast{
+  position:fixed;left:50%;bottom:34px;transform:translate(-50%,20px);
+  background:rgba(0,0,0,.82);color:#fff;padding:10px 18px;border-radius:22px;
+  font-size:13px;opacity:0;transition:.24s;pointer-events:none;z-index:99;
+}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <div class="logo">💰</div>
+    <h1>随手记</h1>
+    <p class="slogan">简洁好用的安卓记账本 · 一秒记一笔</p>
+    <div class="badges">
+      <span class="badge">v1.0</span>
+      <span class="badge" id="sizeBadge">17 MB</span>
+      <span class="badge">Android 5.1+</span>
+      <span class="badge">完全离线</span>
+    </div>
+  </header>
+
+  <div class="dl-card">
+    <button class="dl-main" id="dlBtn">⬇ 下载安装包</button>
+    <button class="dl-sub" id="copyBtn">📋 复制下载链接</button>
+    <div class="meta-row">
+      <div><b id="mSize">–</b>安装包</div>
+      <div><b>Android 5.1+</b>系统要求</div>
+      <div><b>v1.0</b>版本</div>
+    </div>
+    <p class="hint">数据全部保存在手机本地，不联网、不上传，卸载前请先导出备份</p>
+  </div>
+
+  <div class="ios-note" id="iosNote">
+    检测到你当前不是 Android 设备。本安装包仅适用于安卓手机，请用安卓手机访问本页下载。
+  </div>
+
+  <section>
+    <h2>安装步骤</h2>
+    <div class="steps">
+      <div class="step"><div class="sn">1</div><div><div class="st-t">点击上方按钮下载</div><div class="st-d">APK 文件约 17 MB，建议在 Wi-Fi 下下载</div></div></div>
+      <div class="step"><div class="sn">2</div><div><div class="st-t">打开下载好的安装包</div><div class="st-d">可在通知栏点击，或在「文件管理 → 下载」中找到</div></div></div>
+      <div class="step"><div class="sn">3</div><div><div class="st-t">允许「未知来源」并安装</div><div class="st-d">首次安装系统会提示授权，勾选允许后继续即可</div></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>主要功能</h2>
+    <div class="feats">
+      <div class="feat"><div class="fi">✏️</div><div class="ft">一秒记一笔</div><div class="fd">支出收入切换，自定义数字键盘，14 类消费分类</div></div>
+      <div class="feat"><div class="fi">📊</div><div class="ft">图表分析</div><div class="fd">环形占比图、分类排行、近半年收支趋势</div></div>
+      <div class="feat"><div class="fi">📋</div><div class="ft">明细流水</div><div class="fd">按月份切换，日期分组，当日收支小计</div></div>
+      <div class="feat"><div class="fi">💳</div><div class="ft">多账户</div><div class="fd">现金/银行卡/支付宝/微信/信用卡，余额自动汇总</div></div>
+      <div class="feat"><div class="fi">📄</div><div class="ft">导出 CSV</div><div class="fd">一键导出全部账目，方便备份与分析</div></div>
+      <div class="feat"><div class="fi">🔒</div><div class="ft">离线私密</div><div class="fd">数据仅存本地，无需注册登录</div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>界面预览</h2>
+    <div class="shots">
+      <div class="shot"><img src="shots/detail.png" alt="明细页" loading="lazy"><div class="cap">明细 · 按日分组流水</div></div>
+      <div class="shot"><img src="shots/stats.png" alt="图表页" loading="lazy"><div class="cap">图表 · 占比与趋势</div></div>
+      <div class="shot"><img src="shots/account.png" alt="账户页" loading="lazy"><div class="cap">账户 · 余额自动汇总</div></div>
+      <div class="shot"><img src="shots/mine.png" alt="我的页" loading="lazy"><div class="cap">我的 · 导出与设置</div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>版本信息</h2>
+    <div class="about">
+      <div class="kv"><span>版本号</span><b>1.0</b></div>
+      <div class="kv"><span>包名</span><b>com.suishouji.clone</b></div>
+      <div class="kv"><span>目标系统</span><b>Android 14 (API 34)</b></div>
+      <div class="kv"><span>最低系统</span><b>Android 5.1 (API 22)</b></div>
+      <div class="kv"><span>技术栈</span><b>Vue 3 + Capacitor 6</b></div>
+      <div class="kv"><span>联网权限</span><b>不需要，纯离线</b></div>
+    </div>
+  </section>
+
+  <footer>随手记复刻版 · 仅供学习交流使用</footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+var APK = 'suishouji.apk';
+
+/* 生成 APK 绝对地址，并继承当前页面查询参数（如 sharecode），否则会被访问控制拦截 */
+function apkUrl(){
+  var u = new URL(APK, location.href);
+  new URLSearchParams(location.search).forEach(function(v, k){ u.searchParams.set(k, v); });
+  return u.href;
+}
+
+function toast(msg){
+  var t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(function(){ t.classList.remove('show'); }, 2200);
+}
+function fmt(bytes){
+  if(!bytes) return '17 MB';
+  return (bytes/1024/1024).toFixed(1) + ' MB';
+}
+
+/* 读取真实 APK 体积 */
+fetch(apkUrl(), { method:'HEAD' })
+  .then(function(r){
+    var len = parseInt(r.headers.get('content-length'), 10);
+    if(len){
+      document.getElementById('sizeBadge').textContent = fmt(len);
+      document.getElementById('mSize').textContent = fmt(len);
+    }
+  })
+  .catch(function(){});
+
+/* 下载：用隐藏 <a download> 保证移动端也能触发下载 */
+document.getElementById('dlBtn').addEventListener('click', function(){
+  toast('开始下载…');
+  var a = document.createElement('a');
+  a.href = apkUrl(); a.download = '随手记-v1.0.apk';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+});
+
+/* 复制绝对下载链接 */
+document.getElementById('copyBtn').addEventListener('click', function(){
+  var url = apkUrl();
+  var done = function(){ toast('下载链接已复制'); };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(url).then(done, fallback);
+  } else { fallback(); }
+  function fallback(){
+    var ta = document.createElement('textarea');
+    ta.value = url; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select();
+    try{ document.execCommand('copy'); done(); }catch(e){ toast(url); }
+    document.body.removeChild(ta);
+  }
+});
+
+/* 非安卓设备提示 */
+if(!/android/i.test(navigator.userAgent)){
+  document.getElementById('iosNote').style.display = 'block';
+}
+</script>
+</body>
+</html>

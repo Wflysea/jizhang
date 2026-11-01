@@ -1,0 +1,120 @@
+:root {
+  /* 品牌主色：随手记风格橙黄 */
+  --brand: #FF9500;
+  --brand-dark: #F08000;
+  --brand-light: #FFF3E0;
+
+  /* 收支语义色（符合国内记账 App 惯例：支出红、收入绿） */
+  --expense: #F5453D;
+  --income: #00B578;
+
+  --bg: #F5F6F8;
+  --card: #FFFFFF;
+  --text: #1A1A1A;
+  --text-2: #666666;
+  --text-3: #9A9A9A;
+  --line: #EFEFEF;
+
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
+  --tabbar-h: 56px;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body, #app {
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
+               "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif,
+               "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji";
+  background: #E9EBEF;
+  color: var(--text);
+  font-size: 14px;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 手机外框：桌面浏览器居中显示手机尺寸，真机上自动全屏 */
+.phone-frame {
+  position: relative;
+  width: 100%;
+  max-width: 430px;
+  height: 100%;
+  margin: 0 auto;
+  background: var(--bg);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.18);
+}
+
+@media (min-width: 500px) {
+  .phone-frame {
+    height: 92vh;
+    margin-top: 4vh;
+    border-radius: 28px;
+  }
+}
+
+button {
+  font-family: inherit;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: inherit;
+}
+
+input, textarea {
+  font-family: inherit;
+  border: none;
+  outline: none;
+  background: none;
+  color: inherit;
+}
+
+/* 通用卡片 */
+.card {
+  background: var(--card);
+  border-radius: 12px;
+  margin: 10px 12px;
+  padding: 14px;
+}
+
+/* 页面滚动容器，为底部 TabBar 留出空间 */
+.page {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 12px);
+}
+
+.page::-webkit-scrollbar { width: 0; }
+
+.row-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.section-title {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 16px 14px 8px;
+  color: var(--text);
+}
+
+/* 数字等宽字体，金额对齐更整齐 */
+.amount-font {
+  font-family: "SF Mono", "Roboto Mono", Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
