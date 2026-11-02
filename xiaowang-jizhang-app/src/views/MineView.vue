@@ -5,7 +5,7 @@ import {
 } from '../store/ledger.js'
 import { getCategory } from '../data/categories.js'
 import {
-  exportBackupJson, exportBackupXlsx, parseImportFile, applyImport, pickFile
+  exportBackupXlsx, parseImportFile, applyImport, pickFile
 } from '../utils/dataIO.js'
 import { exportToast } from '../utils/fileExport.js'
 import pkg from '../../package.json'
@@ -62,11 +62,9 @@ async function doExport(kind) {
     alert('还没有任何数据可导出')
     return
   }
-  busy.value = kind
+  busy.value = 'xlsx'
   try {
-    const r = kind === 'json'
-      ? exportBackupJson()
-      : exportBackupXlsx(accountBalances.value, { detailRow, byCategory, byMonth })
+    const r = exportBackupXlsx(accountBalances.value, { detailRow, byCategory, byMonth })
     const res = await r.file
     alert(exportToast(res, r.name))
   } catch (e) {
@@ -135,15 +133,7 @@ function reset() {
 
     <div class="section-title">数据导入导出</div>
     <div class="card list">
-      <button class="li" :disabled="busy === 'json'" @click="doExport('json')">
-        <span class="li-ico">💾</span>
-        <span class="li-txt">
-          导出 JSON 备份
-          <em class="li-sub">账号 + 全部流水，可原样回导</em>
-        </span>
-        <span class="arrow">›</span>
-      </button>
-      <button class="li" :disabled="busy === 'xlsx'" @click="doExport('xlsx')">
+      <button class="li" :disabled="busy === 'xlsx'" @click="doExport()">
         <span class="li-ico">📊</span>
         <span class="li-txt">
           导出 Excel
@@ -154,22 +144,27 @@ function reset() {
       <button class="li" @click="doImport">
         <span class="li-ico">📥</span>
         <span class="li-txt">
-          导入数据
-          <em class="li-sub">JSON / Excel，自动识别账号与流水</em>
+          导入 Excel
+          <em class="li-sub">自动识别账户表与流水表</em>
         </span>
-        <span class="arrow">›</span>
-      </button>
-      <button class="li" @click="reset">
-        <span class="li-ico">❌</span>
-        <span class="li-txt danger">清空全部数据</span>
         <span class="arrow">›</span>
       </button>
     </div>
 
     <p class="tip">
       导出走系统分享面板（可保存到本地、发微信、传网盘）<br />
-      导入支持「合并」（保留现有数据，跳过重复）与「覆盖」（替换为文件内容）
+      导入支持「合并」（保留现有数据，跳过重复）与「覆盖」（替换为文件内容）<br />
+      导出的 Excel 可直接改完再导回，无需另存备份文件
     </p>
+
+    <div class="section-title">数据管理</div>
+    <div class="card list">
+      <button class="li" @click="reset">
+        <span class="li-ico">🗑️</span>
+        <span class="li-txt danger">清空全部数据</span>
+        <span class="arrow">›</span>
+      </button>
+    </div>
 
     <div class="section-title">设置</div>
     <div class="card list">

@@ -1,18 +1,16 @@
 /**
- * 统一的数据导入 / 导出
+ * 统一的数据导入 / 导出（仅 Excel）
  *
  * 一个入口同时处理「账户信息」和「账目流水」：
- * - 导出：JSON 完整备份（账号 + 流水，可原样回导）/ Excel（明细流水 + 账户 + 分类汇总 + 月度汇总）
- * - 导入：自动识别文件内容是完整备份、仅账户、还是仅流水；支持「合并」与「覆盖」两种方式
+ * - 导出：Excel 工作簿 —— 明细流水 + 账户 + 分类汇总 + 月度汇总
+ * - 导入：同一份 Excel，自动识别「账户」表与「明细流水」表；支持「合并」与「覆盖」两种方式
  *
- * 兼容旧版文件：账户 JSON（type: 'accounts'）与账户 Excel 仍可正常导入。
+ * 导出的表格可直接改完再导回，账户表与流水表少了也能单独导入。
  */
 import * as XLSX from 'xlsx'
 import { state } from '../store/ledger.js'
 import { ACCOUNT_GROUPS, getCategories, normalizeGroupId } from '../data/categories.js'
-import { exportFile, utf8ToBase64 } from './fileExport.js'
-
-const APP_TAG = 'xiaowang-jizhang'
+import { exportFile } from './fileExport.js'
 
 function stamp() {
   const d = new Date()
@@ -29,53 +27,6 @@ const pad2 = n => String(n).padStart(2, '0')
 
 /* ==================== 导出 ==================== */
 
-/** 构造完整备份数据（账号 + 全部流水） */
-export function buildBackup() {
-  return {
-    app: APP_TAG,
-    type: 'backup',
-    version: 1,
-    exportedAt: new Date().toISOString(),
-    accounts: state.accounts.map(a => ({
-      id: a.id,
-      groupId: a.groupId,
-      groupName: groupNameOf(a.groupId),
-      name: a.name,
-      counted: !a.excluded        // false = 不计入资产
-    })),
-    records: state.records.map(r => {
-      const o = {
-        id: r.id,
-        type: r.type,             // income / expense / transfer
-        amount: r.amount,
-        date: r.date,
-        note: r.note || ''
-      }
-      if (r.type === 'transfer') {
-        o.fromAccountId = r.fromAccountId
-        o.toAccountId = r.toAccountId
-      } else {
-        o.categoryId = r.categoryId
-        o.accountId = r.accountId
-      }
-      return o
-    })
-  }
-}
-
-/** 导出 JSON 完整备份 */
-export function exportBackupJson() {
-  const data = buildBackup()
-  const name = `小王记账_备份_${stamp()}.json`
-  const b64 = utf8ToBase64(JSON.stringify(data, null, 2))
-  return {
-    file: exportFile(name, b64, 'application/json'),
-    name,
-    accounts: data.accounts.length,
-    records: data.records.length
-  }
-}
-
 const money2 = n => Math.round((Number(n) || 0) * 100) / 100
 
 /** 账户信息行（导出用） */
@@ -88,7 +39,8 @@ export function accountRows(balances) {
       '账号名称': a.name,
       '余额': b ? money2(b.balance) : 0,
       '流水笔数': b ? b.count : 0,
-      '计入资产': a.excluded ? '否' : '是'
+      '计入资产': a.excluded ? '否' : '是',
+      '账号ID': a.id            // 回导时按 ID 匹配，避免重复
     }
   })
 }
@@ -100,13 +52,13 @@ export function exportBackupXlsx(balances, summaryBuilders) {
   const detail = state.records
     .slice()
     .sort((a, b) => (a.date < b.date ? 1 : -1))
-    .map(r => summaryBuilders.detailRow(r))
+    .map(r => ({ ...summaryBuilders.detailRow(r), '记录ID': r.id }))
   const wsDetail = XLSX.utils.json_to_sheet(detail)
-  wsDetail['!cols'] = [{ wch: 12 }, { wch: 6 }, { wch: 10 }, { wch: 10 }, { wch: 22 }, { wch: 24 }]
+  wsDetail['!cols'] = [{ wch: 12 }, { wch: 6 }, { wch: 10 }, { wch: 10 }, { wch: 22 }, { wch: 24 }, { wch: 20 }]
   XLSX.utils.book_append_sheet(wb, wsDetail, '明细流水')
 
   const wsAcc = XLSX.utils.json_to_sheet(accountRows(balances))
-  wsAcc['!cols'] = [{ wch: 14 }, { wch: 20 }, { wch: 12 }, { wch: 10 }, { wch: 10 }]
+  wsAcc['!cols'] = [{ wch: 14 }, { wch: 20 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 20 }]
   XLSX.utils.book_append_sheet(wb, wsAcc, '账户')
 
   const wsCat = XLSX.utils.json_to_sheet(summaryBuilders.byCategory())
@@ -197,7 +149,7 @@ function normAccount(row) {
   else if (row['计入资产'] !== undefined) excluded = parseCounted(row['计入资产'])
 
   return {
-    id: String(row.id ?? '').trim(),
+    id: String(row.id ?? row['账号ID'] ?? '').trim(),
     groupId: normalizeGroupId(groupId),
     name: name.slice(0, 16),
     excluded
@@ -220,14 +172,14 @@ function normRecord(row) {
   if (!type) return null
 
   const o = {
-    id: String(row.id ?? '').trim(),
+    id: String(row.id ?? row['记录ID'] ?? '').trim(),
     type,
     amount: money2(amount),
     date,
     note: String(row.note ?? row['备注'] ?? '').trim().slice(0, 30)
   }
 
-  // 账户引用可能来自三种写法：列名（外部表格）、账户名（Excel 导出）、账户 id（JSON 备份）
+  // 账户引用可能来自两种写法：账户名（自己导出的 Excel）或账户 id（账号ID 列）
   const accRaw = String(row.account ?? row['账户'] ?? row.accountName ?? '').trim()
   const idRef = String(row.accountIdRef ?? row.accountId ?? '').trim()
 
@@ -255,42 +207,22 @@ function normRecord(row) {
 }
 
 /**
- * 解析导入文件（.json / .xlsx / .xls）
+ * 解析导入文件（仅 .xlsx / .xls）
  * @returns {Promise<{kind, source, accounts, records}>}
  *   kind: 'backup'（账号+流水）| 'accounts'（仅账号）| 'records'（仅流水）
  */
 export function parseImportFile(file) {
+  const fname = (file.name || '').toLowerCase()
+  if (!/\.(xlsx|xls)$/.test(fname)) {
+    return Promise.reject(new Error('只支持导入 Excel 文件（.xlsx / .xls），请先用「导出 Excel」生成'))
+  }
+
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onerror = () => reject(new Error('文件读取失败'))
 
     reader.onload = () => {
       try {
-        const fname = (file.name || '').toLowerCase()
-
-        if (fname.endsWith('.json')) {
-          const data = JSON.parse(String(reader.result))
-          const accounts = Array.isArray(data.accounts)
-            ? data.accounts.map(normAccount).filter(Boolean)
-            : []
-          const records = Array.isArray(data.records)
-            ? data.records.map(normRecord).filter(Boolean)
-            : []
-          // 旧版「仅账户」文件：accounts 在根数组或 data.accounts
-          const rootArr = Array.isArray(data) ? data.map(normAccount).filter(Boolean) : []
-          const accList = accounts.length ? accounts : rootArr
-
-          if (!accList.length && !records.length) throw new Error('文件中没有可导入的数据')
-          resolve({
-            kind: accList.length && records.length ? 'backup' : (accList.length ? 'accounts' : 'records'),
-            source: 'JSON',
-            accounts: accList,
-            records
-          })
-          return
-        }
-
-        /* Excel */
         const wb = XLSX.read(reader.result, { type: 'array' })
         const accounts = []
         const records = []
@@ -328,8 +260,7 @@ export function parseImportFile(file) {
       }
     }
 
-    if ((file.name || '').toLowerCase().endsWith('.json')) reader.readAsText(file)
-    else reader.readAsArrayBuffer(file)
+    reader.readAsArrayBuffer(file)
   })
 }
 
@@ -445,12 +376,12 @@ export function applyImport(data, mode = 'merge') {
   return result
 }
 
-/** 弹出系统文件选择器，返回选中的文件 */
+/** 弹出系统文件选择器，返回选中的文件（仅 Excel） */
 export function pickFile() {
   return new Promise(resolve => {
     const input = document.createElement('input')
     input.type = 'file'
-    input.accept = '.json,.xlsx,.xls'
+    input.accept = '.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel'
     input.style.display = 'none'
     document.body.appendChild(input)
     input.onchange = () => { resolve(input.files[0] || null); input.remove() }
