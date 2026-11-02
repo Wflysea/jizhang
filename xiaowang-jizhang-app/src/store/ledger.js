@@ -64,9 +64,44 @@ export const state = reactive({
   records: loadRecords(),
   accounts: loadAccounts(),
   month: nowMonth(),
+  /** 明细页时间范围：today | week | month | year */
+  range: 'month',
   /** 记一笔弹层：null | { type, categoryId, amount, note, date, accountId } */
   editing: null
 })
+
+/** 明细页可选的时间范围 */
+export const RANGES = [
+  { id: 'today', name: '今天' },
+  { id: 'week', name: '本周' },
+  { id: 'month', name: '本月' },
+  { id: 'year', name: '本年' }
+]
+
+/**
+ * 当前筛选范围的起止日期（含）
+ * week 按中国习惯从周一开始；month 跟随 state.month，可左右翻月
+ */
+export function rangeBounds(range = state.range) {
+  const d = new Date()
+  if (range === 'today') {
+    const t = fmtDate(d)
+    return { start: t, end: t, label: t }
+  }
+  if (range === 'week') {
+    const dow = (d.getDay() + 6) % 7                    // 周一 = 0
+    const mon = new Date(d.getFullYear(), d.getMonth(), d.getDate() - dow)
+    const sun = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6)
+    const a = fmtDate(mon), b = fmtDate(sun)
+    return { start: a, end: b, label: `${a.slice(5).replace('-', '.')} - ${b.slice(5).replace('-', '.')}` }
+  }
+  if (range === 'year') {
+    const y = String(d.getFullYear())
+    return { start: `${y}-01-01`, end: `${y}-12-31`, label: `${y} 年` }
+  }
+  const m = state.month
+  return { start: `${m}-01`, end: `${m}-31`, label: m.replace('-', '年') + '月' }
+}
 
 watch(
   () => state.records,
@@ -85,40 +120,55 @@ watch(
 )
 
 /* ---------- 派生数据 ---------- */
-export const monthRecords = computed(() =>
-  state.records
-    .filter(r => r.date.slice(0, 7) === state.month)
+/** 取 [start, end] 区间内的流水，按日期倒序、同日按录入时间倒序 */
+function recordsIn(start, end) {
+  return state.records
+    .filter(r => r.date >= start && r.date <= end)
     .sort((a, b) => (a.date === b.date ? b.createdAt - a.createdAt : (a.date < b.date ? 1 : -1)))
-)
+}
 
-export const monthSummary = computed(() => {
+/** 收支汇总（转账只是资金搬动，不计收入/支出，也不影响结余） */
+function summarize(list) {
   let income = 0, expense = 0, transfer = 0
-  for (const r of monthRecords.value) {
-    // 转账只是资金在账户间搬动，不计入收入 / 支出，也不影响结余
+  for (const r of list) {
     if (r.type === 'transfer') { transfer += r.amount; continue }
     if (r.type === 'income') income += r.amount
     else expense += r.amount
   }
   return { income, expense, balance: income - expense, transfer }
-})
+}
 
 /** 按日分组，用于明细页瀑布列表 */
-export const dailyGroups = computed(() => {
+function groupByDay(list) {
   const map = new Map()
-  for (const r of monthRecords.value) {
+  for (const r of list) {
     if (!map.has(r.date)) map.set(r.date, [])
     map.get(r.date).push(r)
   }
   return [...map.entries()].map(([date, items]) => {
     let income = 0, expense = 0
     for (const r of items) {
-      if (r.type === 'transfer') continue   // 转账不计入当日收支
+      if (r.type === 'transfer') continue
       if (r.type === 'income') income += r.amount
       else expense += r.amount
     }
     return { date, items, income, expense }
   })
+}
+
+export const monthRecords = computed(() =>
+  recordsIn(`${state.month}-01`, `${state.month}-31`)
+)
+
+export const monthSummary = computed(() => summarize(monthRecords.value))
+
+/* ---------- 明细页：按「今天 / 本周 / 本月 / 本年」筛选 ---------- */
+export const rangeRecords = computed(() => {
+  const { start, end } = rangeBounds()
+  return recordsIn(start, end)
 })
+export const rangeSummary = computed(() => summarize(rangeRecords.value))
+export const rangeGroups = computed(() => groupByDay(rangeRecords.value))
 
 /** 分类聚合统计，用于饼图与排行榜 */
 export function categoryStats(type) {

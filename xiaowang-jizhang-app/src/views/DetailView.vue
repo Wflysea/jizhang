@@ -1,12 +1,20 @@
 <script setup>
 import { computed, ref } from 'vue'
 import {
-  state, monthSummary, dailyGroups, removeRecord, shiftMonth, nowMonth,
+  state, rangeSummary, rangeGroups, rangeBounds, RANGES,
+  removeRecord, shiftMonth, nowMonth,
   openEdit, duplicateRecord, accountName, transferText
 } from '../store/ledger.js'
 import { getCategory } from '../data/categories.js'
 
 const money = n => n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+
+/* 当前筛选范围（今天 / 本周 / 本月 / 本年） */
+const summary = computed(() => rangeSummary.value)
+const groups = computed(() => rangeGroups.value)
+const bounds = computed(() => rangeBounds())
+const isMonth = computed(() => state.range === 'month')
+const rangeName = computed(() => (RANGES.find(x => x.id === state.range) || {}).name || '')
 
 /** 转账：以「转出 → 转入」形式展示；普通收支显示分类名 */
 function titleOf(r) {
@@ -121,33 +129,46 @@ function actDel(r) {
 
 <template>
   <div class="page" @pointerdown.self="closeSwipe">
-    <!-- 月份切换 + 收支概览 -->
+    <!-- 时间范围筛选 + 收支概览 -->
     <div class="hero">
-      <div class="month-bar">
+      <div class="range-bar">
+        <button
+          v-for="x in RANGES" :key="x.id"
+          class="rg" :class="{ on: state.range === x.id }"
+          @click="state.range = x.id"
+        >{{ x.name }}</button>
+      </div>
+
+      <div v-if="isMonth" class="month-bar">
         <button @click="state.month = shiftMonth(state.month, -1)">‹</button>
         <span class="month">{{ state.month.replace('-', '年') }}月</span>
         <button :disabled="isCurrent" @click="!isCurrent && (state.month = shiftMonth(state.month, 1))">›</button>
       </div>
+      <div v-else class="month-bar plain">
+        <span class="month">{{ rangeName }} · {{ bounds.label }}</span>
+      </div>
 
       <div class="summary">
-        <div class="cell">
-          <span class="lab">支出</span>
-          <span class="val amount-font expense">{{ money(monthSummary.expense) }}</span>
+        <div class="sum-row">
+          <div class="cell">
+            <span class="lab">支出</span>
+            <span class="val amount-font expense">{{ money(summary.expense) }}</span>
+          </div>
+          <div class="cell">
+            <span class="lab">收入</span>
+            <span class="val amount-font income">{{ money(summary.income) }}</span>
+          </div>
         </div>
-        <div class="cell">
-          <span class="lab">收入</span>
-          <span class="val amount-font income">{{ money(monthSummary.income) }}</span>
-        </div>
-        <div class="cell">
+        <div class="sum-row balance-row">
           <span class="lab">结余</span>
-          <span class="val amount-font">{{ money(monthSummary.balance) }}</span>
+          <span class="bal amount-font">{{ money(summary.balance) }}</span>
         </div>
       </div>
     </div>
 
     <!-- 流水 -->
-    <div v-if="dailyGroups.length">
-      <div v-for="g in dailyGroups" :key="g.date" class="day-card">
+    <div v-if="groups.length">
+      <div v-for="g in groups" :key="g.date" class="day-card">
         <div class="day-head">
           <span class="d">{{ g.date.slice(8) }}日 {{ weekday(g.date) }}</span>
           <span class="s">
@@ -190,7 +211,7 @@ function actDel(r) {
 
     <div v-else class="empty">
       <div class="empty-ico">🧾</div>
-      <p>本月还没有记账</p>
+      <p>{{ rangeName }}还没有记账</p>
       <span>点击底部 ＋ 记第一笔</span>
     </div>
 
@@ -204,15 +225,36 @@ function actDel(r) {
   color: #fff;
   padding: calc(14px + var(--safe-top)) 16px 18px;
 }
+/* 今天 / 本周 / 本月 / 本年 */
+.range-bar {
+  display: flex; gap: 4px; margin: 0 auto 12px;
+  background: rgba(255, 255, 255, .18);
+  border-radius: 16px; padding: 3px;
+}
+.rg {
+  padding: 6px 14px; border-radius: 13px;
+  font-size: 13px; color: #fff; opacity: .82; transition: .18s;
+}
+.rg.on { background: #fff; color: #FF8A00; font-weight: 600; opacity: 1; }
+
 .month-bar { display: flex; align-items: center; justify-content: center; gap: 18px; margin-bottom: 14px; }
 .month-bar button { font-size: 20px; color: #fff; opacity: .9; width: 28px; }
 .month-bar button:disabled { opacity: .35; }
+.month-bar.plain { margin-bottom: 12px; }
 .month { font-size: 15px; font-weight: 600; }
 
-.summary { display: flex; }
+/* 第一行：支出 / 收入；第二行：结余 */
+.summary { display: flex; flex-direction: column; gap: 10px; }
+.sum-row { display: flex; }
 .cell { flex: 1; display: flex; flex-direction: column; gap: 3px; }
 .lab { font-size: 11px; opacity: .85; }
 .val { font-size: 19px; font-weight: 600; }
+
+.balance-row {
+  align-items: baseline; gap: 8px;
+  padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, .22);
+}
+.bal { font-size: 24px; font-weight: 600; }
 
 .day-card { background: #fff; margin: 10px 12px; border-radius: 12px; overflow: hidden; }
 .day-head {
