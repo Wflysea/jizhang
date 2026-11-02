@@ -246,8 +246,28 @@ export const accountBalances = computed(() =>
 export const accountGroups = computed(() =>
   ACCOUNT_GROUPS.map(g => {
     const items = accountBalances.value.filter(a => a.groupId === g.id)
-    return { ...g, items, balance: items.reduce((s, a) => s + a.balance, 0) }
+    // 标记为「不计入资产」的账号不计入分组余额与净资产
+    const counted = items.filter(a => !a.excluded)
+    return {
+      ...g,
+      items,
+      balance: counted.reduce((s, a) => s + a.balance, 0),
+      excludedCount: items.length - counted.length
+    }
   })
+)
+
+/** 净资产：只统计未标记「不计入资产」的账号 */
+export const netAssets = computed(() => {
+  const sum = accountBalances.value
+    .filter(a => !a.excluded)
+    .reduce((s, a) => s + a.balance, 0)
+  return Math.round(sum * 100) / 100
+})
+
+/** 被标记为「不计入资产」的账号数量，用于界面提示 */
+export const excludedAccounts = computed(() =>
+  accountBalances.value.filter(a => a.excluded)
 )
 
 /* ---------- 操作 ---------- */
@@ -492,6 +512,18 @@ export function renameAccount(id, name) {
   const a = state.accounts.find(x => x.id === id)
   const n = (name || '').trim()
   if (a && n) a.name = n
+}
+
+/**
+ * 切换账号的「不计入资产」标记。
+ * 被标记的账号余额不再计入净资产与各账户类型合计，但流水照常记录。
+ * @returns {boolean|null} 切换后的状态；账号不存在时返回 null
+ */
+export function toggleAccountExcluded(id) {
+  const a = state.accounts.find(x => x.id === id)
+  if (!a) return null
+  a.excluded = !a.excluded
+  return a.excluded
 }
 
 /** 删除账号：已有流水不删除，仅解除归属（明细中显示为「已删除账号」） */

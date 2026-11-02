@@ -21,6 +21,13 @@ function groupNameOf(groupId) {
   return g ? g.name : ''
 }
 
+/** 「计入资产」列的值 → excluded 布尔：否/不计入/no/false/0 视为不计入 */
+function parseCounted(v) {
+  const s = String(v ?? '').trim().toLowerCase()
+  if (!s) return false
+  return /^(否|不计入|不计|no|n|false|0)$/.test(s)
+}
+
 /* ---------- 导出 ---------- */
 
 /** 导出为 JSON（含账号名、所属类型，可原样导入） */
@@ -36,7 +43,9 @@ export function exportAccountsJson(balances) {
       groupId: a.groupId,
       groupName: groupNameOf(a.groupId),
       name: a.name,
-      balance: Math.round((balMap.get(a.id) || 0) * 100) / 100
+      balance: Math.round((balMap.get(a.id) || 0) * 100) / 100,
+      // 是否计入净资产（false = 不计入资产）
+      counted: !a.excluded
     }))
   }
   const name = `小王记账_账户_${stamp()}.json`
@@ -50,11 +59,12 @@ export function exportAccountsXlsx(balances) {
     '账户类型': groupNameOf(a.groupId),
     '账号名称': a.name,
     '余额': Math.round(a.balance * 100) / 100,
-    '流水笔数': a.count
+    '流水笔数': a.count,
+    '计入资产': a.excluded ? '否' : '是'
   }))
   const wb = XLSX.utils.book_new()
   const ws = XLSX.utils.json_to_sheet(rows)
-  ws['!cols'] = [{ wch: 14 }, { wch: 20 }, { wch: 12 }, { wch: 10 }]
+  ws['!cols'] = [{ wch: 14 }, { wch: 20 }, { wch: 12 }, { wch: 10 }, { wch: 10 }]
   XLSX.utils.book_append_sheet(wb, ws, '账户')
 
   const name = `小王记账_账户_${stamp()}.xlsx`
@@ -95,6 +105,7 @@ export function parseAccountsFile(file) {
         // 只有能识别出「名称列」才算有表头，否则整表都当数据
         const iName = head.findIndex(h => /账号|名称/.test(h))
         const iGroup = head.findIndex(h => /类型|分组/.test(h))
+        const iCounted = head.findIndex(h => /计入|资产/.test(h))   // 「计入资产：是/否」
         const hasHead = iName >= 0
         const body = hasHead ? rows.slice(1) : rows
 
@@ -106,7 +117,8 @@ export function parseAccountsFile(file) {
             return normalizeRow({
               name: iName >= 0 ? r[iName] : cells[cells.length - 1],
               groupName: iGroup >= 0 ? r[iGroup] : (cells.length >= 2 ? cells[0] : ''),
-              groupId: ''
+              groupId: '',
+              excluded: iCounted >= 0 ? parseCounted(r[iCounted]) : false
             })
           })
           .filter(Boolean)
@@ -122,7 +134,19 @@ export function parseAccountsFile(file) {
   })
 }
 
-/** 归一为 {groupId, name}；名称为空或无法识别时返回 null */
+const truthy = v => v === true || v === 'true' || v === 1 || v === '1'
+
+/** 读取「不计入资产」标记：兼容 excluded 与 counted 两种写法 */
+function parseExcluded(row) {
+  if (row.excluded !== undefined && row.excluded !== null && row.excluded !== '') return truthy(row.excluded)
+  if (row.counted !== undefined && row.counted !== null && row.counted !== '') return !truthy(row.counted)
+  return false
+}
+
+/**
+ * 归一为 { id, groupId, name, excluded }；名称为空或无法识别时返回 null。
+ * 保留原 id —— 这样导出的 JSON 回导后，流水仍能正确归属到原账号。
+ */
 function normalizeRow(row) {
   if (!row) return null
   const name = String(row.name ?? '').trim()
@@ -141,7 +165,12 @@ function normalizeRow(row) {
     const g = ACCOUNT_GROUPS.find(x => x.name === groupId)
     if (g) groupId = g.id
   }
-  return { groupId: normalizeGroupId(groupId), name: name.slice(0, 16) }
+  return {
+    id: String(row.id ?? '').trim(),
+    groupId: normalizeGroupId(groupId),
+    name: name.slice(0, 16),
+    excluded: parseExcluded(row)
+  }
 }
 
 /**
@@ -162,7 +191,7 @@ export function applyImport(rawList, mode = 'merge') {
       // id 缺失或重复时生成新 id，避免与流水归属冲突
       if (!id || used.has(id)) id = `imp_${Date.now()}_${i}`
       used.add(id)
-      return { id, groupId: a.groupId, name: a.name }
+      return { id, groupId: a.groupId, name: a.name, excluded: a.excluded }
     })
     return { added: state.accounts.length, skipped: 0, total: state.accounts.length }
   }
@@ -177,7 +206,7 @@ export function applyImport(rawList, mode = 'merge') {
     let id = String(a.id || '').trim()
     if (!id || ids.has(id)) id = `imp_${Date.now()}_${n}`
     ids.add(id); exist.add(key); n++
-    state.accounts.push({ id, groupId: a.groupId, name: a.name })
+    state.accounts.push({ id, groupId: a.groupId, name: a.name, excluded: a.excluded })
     added++
   }
   return { added, skipped, total: state.accounts.length }

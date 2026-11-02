@@ -3,7 +3,8 @@ import { ref, computed, nextTick } from 'vue'
 import {
   accountGroups, accountBalances,
   addAccount, renameAccount, removeAccount,
-  adjustBalance, accountBalanceOf, money, openTransfer
+  adjustBalance, accountBalanceOf, money, openTransfer,
+  netAssets, excludedAccounts, toggleAccountExcluded
 } from '../store/ledger.js'
 import {
   exportAccountsJson, exportAccountsXlsx,
@@ -11,7 +12,8 @@ import {
 } from '../utils/accountIO.js'
 import { exportToast } from '../utils/fileExport.js'
 
-const net = computed(() => accountBalances.value.reduce((a, b) => a + b.balance, 0))
+/* 净资产只统计未标记「不计入资产」的账号 */
+const net = computed(() => netAssets.value)
 
 const collapsed = ref({})      // groupId -> 是否折叠
 const addingGroup = ref(null)  // 正在添加账号的 groupId
@@ -99,6 +101,13 @@ function toast(msg) {
   setTimeout(() => { toastMsg.value = '' }, 2200)
 }
 
+/* 切换某账号是否计入资产（余额不再计入净资产，流水照常记录） */
+function toggleExclude(a) {
+  const on = toggleAccountExcluded(a.id)
+  if (on === null) return
+  toast(on ? `「${a.name}」已设为不计入资产` : `「${a.name}」已重新计入资产`)
+}
+
 async function doExport(kind) {
   if (!accountBalances.value.length) {
     alert('还没有任何账户可导出，请先添加账号')
@@ -148,7 +157,10 @@ function confirmImport(mode) {
       <div class="h-left">
         <span class="lab">净资产</span>
         <span class="net amount-font">¥{{ money(net) }}</span>
-        <span class="cnt">{{ accountBalances.length }} 个账号 · {{ accountGroups.length }} 类账户</span>
+        <span class="cnt">
+          {{ accountBalances.length }} 个账号 · {{ accountGroups.length }} 类账户
+          <template v-if="excludedAccounts.length"> · {{ excludedAccounts.length }} 个不计入资产</template>
+        </span>
       </div>
       <button class="h-tf" @click="goTransfer">
         <span class="h-tf-ico">🔄</span>
@@ -181,7 +193,10 @@ function confirmImport(mode) {
         <span class="g-ico">{{ g.icon }}</span>
         <div class="g-info">
           <div class="g-name">{{ g.name }}</div>
-          <div class="g-sub">{{ g.items.length }} 个账号</div>
+          <div class="g-sub">
+            {{ g.items.length }} 个账号
+            <template v-if="g.excludedCount"> · {{ g.excludedCount }} 个不计入</template>
+          </div>
         </div>
         <span class="g-bal amount-font" :class="{ neg: g.balance < 0 }">¥{{ money(g.balance) }}</span>
         <span class="arrow" :class="{ up: !collapsed[g.id] }">›</span>
@@ -202,10 +217,24 @@ function confirmImport(mode) {
           <template v-else>
             <div class="a-info">
               <div class="a-name">{{ a.name }}</div>
-              <div class="a-sub">{{ a.count }} 笔</div>
+              <div class="a-sub">
+                {{ a.count }} 笔
+                <em v-if="a.excluded" class="ex-tag">不计入资产</em>
+              </div>
             </div>
-            <button class="a-bal amount-font" :class="{ neg: a.balance < 0 }" @click="startAdjust(a)">
+            <button class="a-bal amount-font" :class="{ neg: a.balance < 0, off: a.excluded }" @click="startAdjust(a)">
               ¥{{ money(a.balance) }}
+            </button>
+            <button
+              class="op" :class="{ on: a.excluded }"
+              :title="a.excluded ? '已不计入资产，点击恢复' : '设为不计入资产'"
+              @click="toggleExclude(a)"
+            >
+              <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z" />
+                <circle cx="12" cy="12" r="2.6" />
+                <line x1="3.5" y1="20.5" x2="20.5" y2="3.5" />
+              </svg>
             </button>
             <button class="op" @click="startAdjust(a)" title="调整余额">⚖️</button>
             <button class="op" @click="startRename(a)">✎</button>
@@ -228,6 +257,10 @@ function confirmImport(mode) {
 
     <p class="tip">
       点击余额可手动调整（自动生成一笔「余额调整」流水）<br />
+      <template v-if="excludedAccounts.length">
+        已设「不计入资产」：{{ excludedAccounts.map(a => a.name).join('、') }}<br />
+      </template>
+      点 👁 图标可切换账户是否计入净资产，流水照常记录<br />
       账户信息支持 JSON / Excel 导入导出
     </p>
 
@@ -388,6 +421,14 @@ function confirmImport(mode) {
 }
 .a-bal:active { opacity: .5; }
 .a-bal.neg, .g-bal.neg { color: var(--expense); }
+.a-bal.off { color: var(--text-3); }
+
+/* 不计入资产标记 */
+.ex-tag {
+  font-style: normal; font-size: 10.5px; margin-left: 5px;
+  padding: 1px 5px; border-radius: 8px;
+  background: var(--bg); color: var(--text-3);
+}
 
 /* 编辑 / 删除：图标 18px，点击区 32×32 */
 .op {
@@ -398,6 +439,8 @@ function confirmImport(mode) {
 }
 .op.danger { color: var(--expense); }
 .op:active { opacity: .55; transform: scale(.94); }
+/* 已设为不计入资产：高亮为品牌色 */
+.op.on { color: var(--brand-dark); background: var(--brand-light); }
 
 .none { font-size: 12px; color: var(--text-3); padding: 10px 0 10px 4px; }
 

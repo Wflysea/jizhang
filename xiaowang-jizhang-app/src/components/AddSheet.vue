@@ -256,7 +256,10 @@ const displayAmount = computed(() => e.value.amount || '0')
               class="pk-item" :class="{ sel: a.id === targetId }"
               @click="pickAccount(a)"
             >
-              {{ a.name }}
+              <span class="pk-n">
+                {{ a.name }}
+                <em v-if="a.excluded" class="pk-ex">不计入</em>
+              </span>
               <em class="pk-bal amount-font">¥{{ balOf(a.id) }}</em>
             </button>
             <p v-if="!groupAccounts.length && !inlineAdd" class="pk-empty">
@@ -439,7 +442,9 @@ const displayAmount = computed(() => e.value.amount || '0')
   gap: 6px; width: 100%;
   padding: 12px 14px; font-size: 13px; text-align: left;
 }
-.pk-bal { font-style: normal; font-size: 11.5px; color: var(--text-3); }
+.pk-bal { font-style: normal; font-size: 11.5px; color: var(--text-3); flex-shrink: 0; }
+.pk-n { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pk-ex { font-style: normal; font-size: 10px; color: var(--text-3); margin-left: 4px; }
 .pk-item.sel { background: #fff; color: var(--brand); font-weight: 600; }
 .pk-col.right .pk-item.sel { background: var(--brand-light); }
 .pk-empty {
