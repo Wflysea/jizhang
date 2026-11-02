@@ -81,9 +81,7 @@ function confirmAdjust() {
       : '请输入正确的余额数字')
     return
   }
-  const sign = r.delta > 0 ? '+' : '-'
-  alert(`已调整为 ¥${money(r.to)}，自动生成一笔「余额调整」流水：${sign}¥${money(Math.abs(r.delta))}`)
-  closeAdjust()
+  closeAdjust()   // 调整完成直接关闭弹层，余额与流水即时更新，不再弹提示
 }
 
 const toastMsg = ref('')

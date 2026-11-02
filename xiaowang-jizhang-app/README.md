@@ -3,7 +3,7 @@
 Vue 3 + Vite + Capacitor 实现的移动端记账应用，可打包为安卓 APK。
 
 - 应用名：**小王记账**，包名 `com.xiaowang.jizhang`
-- 当前版本：**v1.9.1**（versionCode 10901）
+- 当前版本：**v1.9.2**（versionCode 10902）
 - 安装包体积：约 **3.8 MB**
 
 ## 已实现功能
