@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed, nextTick, onBeforeUnmount } from 'vue'
 import {
   accountGroups, accountBalances,
   addAccount, renameAccount, removeAccount,
@@ -11,6 +11,7 @@ import {
   parseAccountsFile, applyImport, pickFile
 } from '../utils/accountIO.js'
 import { exportToast } from '../utils/fileExport.js'
+import { registerBack } from '../utils/back.js'
 
 /* 净资产只统计未标记「不计入资产」的账号 */
 const net = computed(() => netAssets.value)
@@ -107,6 +108,13 @@ function toggleExclude(a) {
   if (on === null) return
   toast(on ? `「${a.name}」已设为不计入资产` : `「${a.name}」已重新计入资产`)
 }
+
+/* 返回键：先关余额调整 / 导入确认弹层，而不是直接退出 App */
+onBeforeUnmount(registerBack(() => {
+  if (adjId.value) { closeAdjust(); return true }
+  if (importing.value) { importing.value = false; return true }
+  return false
+}))
 
 async function doExport(kind) {
   if (!accountBalances.value.length) {

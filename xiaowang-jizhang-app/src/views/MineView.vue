@@ -1,6 +1,6 @@
 <script setup>
 import * as XLSX from 'xlsx'
-import { state, clearAll, accountName, loadSample, transferText } from '../store/ledger.js'
+import { state, clearAll, accountName, transferText } from '../store/ledger.js'
 import { getCategory } from '../data/categories.js'
 import { exportFile, exportToast } from '../utils/fileExport.js'
 import pkg from '../../package.json'
@@ -83,14 +83,6 @@ async function exportXlsx() {
 function reset() {
   if (confirm('确定清空全部账目？此操作不可恢复。')) clearAll()
 }
-
-/* 载入示例数据：仅用于快速体验图表效果，会覆盖当前账目 */
-function loadSampleData() {
-  if (state.records.length && !confirm('将覆盖当前全部账目，确定载入示例数据？')) return
-  const n = loadSample()
-  if (!n) alert('请先在「账户」页添加至少一个账户')
-  else alert(`已载入 ${n} 笔示例数据（近半年）`)
-}
 </script>
 
 <template>
@@ -107,9 +99,6 @@ function loadSampleData() {
     <div class="card list">
       <button class="li" @click="exportXlsx">
         <span class="li-ico">📄</span><span class="li-txt">导出 Excel</span><span class="arrow">›</span>
-      </button>
-      <button class="li" @click="loadSampleData">
-        <span class="li-ico">🧾</span><span class="li-txt">载入示例数据</span><span class="arrow">›</span>
       </button>
       <button class="li" @click="reset">
         <span class="li-ico">❌</span><span class="li-txt danger">清空全部数据</span><span class="arrow">›</span>

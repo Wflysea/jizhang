@@ -1,10 +1,11 @@
 <script setup>
-import { computed, ref, watch, nextTick } from 'vue'
+import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue'
 import {
   state, saveEditing, closeAdd, removeEditing, accountGroups, addAccount,
   suggestAccountId, accountBalances, money
 } from '../store/ledger.js'
 import { getCategories } from '../data/categories.js'
+import { registerBack } from '../utils/back.js'
 
 const e = computed(() => state.editing)
 const cats = computed(() => getCategories(e.value.type))
@@ -35,6 +36,13 @@ watch(
 const showPicker = ref(false)
 const curGroup = ref(null)
 const pickerTarget = ref('accountId')
+
+/* 返回键：先收起账户选择器，再关闭整个编辑页（不会直接退出 App） */
+onBeforeUnmount(registerBack(() => {
+  if (showPicker.value) { showPicker.value = false; return true }
+  closeAdd()
+  return true
+}))
 
 /** 当前选择器绑定的账号 id */
 const targetId = computed(() => e.value[pickerTarget.value])

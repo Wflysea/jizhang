@@ -98,10 +98,12 @@ function toast(msg) {
   toastTimer = setTimeout(() => { toastMsg.value = '' }, 1600)
 }
 
+/** 复制：生成今天的新记录后直接进入编辑状态，方便改金额 / 账户 / 日期 */
 function actCopy(r) {
   const id = duplicateRecord(r.id)
   closeSwipe()
-  toast(id ? '已复制为今天的新记录' : '复制失败')
+  if (!id) { toast('复制失败'); return }
+  openEdit(id)
 }
 
 function actEdit(r) {

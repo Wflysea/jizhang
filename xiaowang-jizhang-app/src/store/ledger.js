@@ -29,77 +29,6 @@ export function shiftMonth(month, delta) {
   return fmtMonth(d)
 }
 
-/* ---------- 示例数据：由「我的」页手动载入，新安装不再自动生成 ---------- */
-function seedRecords(accounts) {
-  const pool = (accounts || []).map(a => a.id)
-  if (!pool.length) return []
-  const pickAccount = () => pool[Math.floor(Math.random() * pool.length)]
-
-  const list = []
-  const base = new Date()
-  const expensePool = [
-    ['food', 18, 90], ['food', 25, 45], ['transport', 3, 60], ['transport', 8, 200],
-    ['shopping', 60, 500], ['daily', 20, 120], ['entertain', 30, 150],
-    ['housing', 1800, 2600], ['telecom', 50, 100], ['medical', 40, 300]
-  ]
-  const incomePool = [['salary', 9000, 13000], ['bonus', 500, 3000], ['invest', 50, 800]]
-
-  const rand = (a, b) => a + Math.random() * (b - a)
-  const pick = arr => arr[Math.floor(Math.random() * arr.length)]
-
-  for (let m = 5; m >= 0; m--) {
-    const d = new Date(base.getFullYear(), base.getMonth() - m, 1)
-    const daysInMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
-    const maxDay = m === 0 ? base.getDate() : daysInMonth
-
-    // 每月固定工资
-    list.push({
-      id: `s_${m}_salary`, type: 'income', amount: Math.round(rand(9500, 12500)),
-      categoryId: 'salary', accountId: pickAccount(),
-      date: fmtDate(new Date(d.getFullYear(), d.getMonth(), Math.min(10, maxDay))),
-      note: '月薪', createdAt: Date.now()
-    })
-
-    const count = Math.round(rand(22, 34))
-    for (let i = 0; i < count; i++) {
-      const day = 1 + Math.floor(Math.random() * maxDay)
-      const [cid, lo, hi] = pick(expensePool)
-      const date = fmtDate(new Date(d.getFullYear(), d.getMonth(), day))
-      list.push({
-        id: `s_${m}_${i}`, type: 'expense',
-        amount: Math.round(rand(lo, hi) * 100) / 100,
-        categoryId: cid, accountId: pickAccount(),
-        date, note: '', createdAt: Date.now()
-      })
-    }
-    // 每月一次账户互转（演示转账流水：转出 −、转入 +，不计收支）
-    if (pool.length > 1) {
-      const from = pickAccount()
-      const rest = pool.filter(id => id !== from)
-      const to = rest[Math.floor(Math.random() * rest.length)]
-      list.push({
-        id: `s_${m}_tf`, type: 'transfer',
-        amount: Math.round(rand(1500, 4000) * 100) / 100,
-        fromAccountId: from, toAccountId: to,
-        date: fmtDate(new Date(d.getFullYear(), d.getMonth(), Math.min(12, maxDay))),
-        note: '账户互转', createdAt: Date.now()
-      })
-    }
-
-    if (Math.random() > 0.45) {
-      const [cid, lo, hi] = pick(incomePool)
-      list.push({
-        id: `s_${m}_bonus`, type: 'income',
-        amount: Math.round(rand(lo, hi)),
-        categoryId: cid, accountId: pickAccount(),
-        date: fmtDate(new Date(d.getFullYear(), d.getMonth(), 1 + Math.floor(Math.random() * maxDay))),
-        note: '', createdAt: Date.now()
-      })
-    }
-  }
-  return list
-}
-
 /* ---------- 具体账号（二级）持久化 ---------- */
 function loadAccounts() {
   let list = null
@@ -409,18 +338,6 @@ function defaultAccountId() {
 export function suggestAccountId(excludeId) {
   const list = state.accounts.filter(a => a.id !== excludeId)
   return (list.find(a => a.id === 'wechat') || list[0] || {}).id || ''
-}
-
-/**
- * 载入示例数据（「我的」页手动触发），用于快速体验图表效果。
- * @returns {number} 生成的笔数；无账号时返回 0
- */
-export function loadSample() {
-  if (!state.accounts.length) return 0
-  const seeded = seedRecords(state.accounts)
-  state.records = seeded
-  state.month = nowMonth()
-  return seeded.length
 }
 
 export function closeAdd() { state.editing = null }
