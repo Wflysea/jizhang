@@ -6,11 +6,6 @@ import {
   adjustBalance, accountBalanceOf, money, openTransfer,
   netAssets, excludedAccounts, toggleAccountExcluded
 } from '../store/ledger.js'
-import {
-  exportAccountsJson, exportAccountsXlsx,
-  parseAccountsFile, applyImport, pickFile
-} from '../utils/accountIO.js'
-import { exportToast } from '../utils/fileExport.js'
 import { registerBack } from '../utils/back.js'
 
 /* 净资产只统计未标记「不计入资产」的账号 */
@@ -91,10 +86,6 @@ function confirmAdjust() {
   closeAdjust()
 }
 
-/* ---------- 导入 / 导出 ---------- */
-const importing = ref(false)
-const impInfo = ref(null)   // { list, source }
-const impErr = ref('')
 const toastMsg = ref('')
 
 function toast(msg) {
@@ -109,54 +100,12 @@ function toggleExclude(a) {
   toast(on ? `「${a.name}」已设为不计入资产` : `「${a.name}」已重新计入资产`)
 }
 
-/* 返回键：先关余额调整 / 导入确认弹层，而不是直接退出 App */
+/* 返回键：先关余额调整弹层，而不是直接退出 App */
 onBeforeUnmount(registerBack(() => {
   if (adjId.value) { closeAdjust(); return true }
-  if (importing.value) { importing.value = false; return true }
   return false
 }))
 
-async function doExport(kind) {
-  if (!accountBalances.value.length) {
-    alert('还没有任何账户可导出，请先添加账号')
-    return
-  }
-  try {
-    const r = kind === 'json'
-      ? exportAccountsJson(accountBalances.value)
-      : exportAccountsXlsx(accountBalances.value)
-    const res = await r.file
-    toast(`${exportToast(res, r.name)}（${r.count} 个账号）`)
-  } catch (e) {
-    alert('导出失败：' + (e.message || e))
-  }
-}
-
-async function doImport() {
-  const file = await pickFile('.json,.xlsx,.xls')
-  if (!file) return
-  impErr.value = ''
-  try {
-    const { accounts, source } = await parseAccountsFile(file)
-    if (!accounts.length) {
-      impErr.value = '文件中没有可用的账号数据'
-      return
-    }
-    impInfo.value = { list: accounts, source, name: file.name }
-    importing.value = true
-  } catch (e) {
-    alert('导入失败：' + (e.message || '文件格式无法识别'))
-  }
-}
-
-function confirmImport(mode) {
-  const r = applyImport(impInfo.value.list, mode)
-  importing.value = false
-  impInfo.value = null
-  toast(mode === 'replace'
-    ? `已覆盖为 ${r.total} 个账号`
-    : `已新增 ${r.added} 个账号${r.skipped ? `，跳过 ${r.skipped} 个重复` : ''}`)
-}
 </script>
 
 <template>
@@ -176,13 +125,6 @@ function confirmImport(mode) {
       </button>
     </div>
 
-    <!-- 账户信息导入 / 导出 -->
-    <div class="io-bar">
-      <button class="io" @click="doImport">📥 导入账户</button>
-      <button class="io" @click="doExport('json')">📤 导出 JSON</button>
-      <button class="io" @click="doExport('xlsx')">📊 导出 Excel</button>
-    </div>
-
     <div class="section-title">我的账户</div>
 
     <!-- 全新安装：没有任何账号时的引导 -->
@@ -191,7 +133,7 @@ function confirmImport(mode) {
       <p class="gd-t">还没有任何账户</p>
       <p class="gd-d">
         在下方任一账户类型里点「＋添加…账号」即可开始，<br />
-        也可以从 JSON / Excel 批量导入
+        也可以到「我的 → 导入数据」从 JSON / Excel 批量导入
       </p>
     </div>
 
@@ -269,7 +211,7 @@ function confirmImport(mode) {
         已设「不计入资产」：{{ excludedAccounts.map(a => a.name).join('、') }}<br />
       </template>
       点 👁 图标可切换账户是否计入净资产，流水照常记录<br />
-      账户信息支持 JSON / Excel 导入导出
+      账户与流水的导入导出统一在「我的 → 数据导入导出」
     </p>
 
     <!-- 余额调整弹层 -->
@@ -328,34 +270,6 @@ function confirmImport(mode) {
       </div>
     </div>
 
-    <!-- 导入确认弹层 -->
-    <div v-if="importing && impInfo" class="mask" @click.self="importing = false">
-      <div class="sheet">
-        <div class="sh-head">
-          <span class="sh-title">导入账户</span>
-          <button class="sh-x" @click="importing = false">✕</button>
-        </div>
-        <div class="sh-body">
-          <p class="imp-sum">
-            从 <b>{{ impInfo.source }}</b> 文件解析到 <b>{{ impInfo.list.length }}</b> 个账号
-          </p>
-          <div class="imp-preview">
-            <span v-for="(a, i) in impInfo.list.slice(0, 12)" :key="i" class="chip">{{ a.name }}</span>
-            <span v-if="impInfo.list.length > 12" class="chip more">…等 {{ impInfo.list.length }} 个</span>
-          </div>
-          <p class="hint">
-            合并：保留现有账号，仅追加不重复的<br />
-            覆盖：清空现有账号，替换为导入的账号（流水不受影响）
-          </p>
-        </div>
-        <div class="sh-foot">
-          <button class="sbtn" @click="importing = false">取消</button>
-          <button class="sbtn ok" @click="confirmImport('merge')">合并导入</button>
-          <button class="sbtn warn" @click="confirmImport('replace')">覆盖导入</button>
-        </div>
-      </div>
-    </div>
-
     <div v-if="toastMsg" class="toast">{{ toastMsg }}</div>
   </div>
 </template>
@@ -391,18 +305,6 @@ function confirmImport(mode) {
 .gd-ico { font-size: 40px; margin-bottom: 10px; }
 .gd-t { font-size: 14.5px; font-weight: 600; color: var(--text-1); margin-bottom: 6px; }
 .gd-d { font-size: 12px; color: var(--text-3); line-height: 1.8; }
-
-/* 导入导出按钮行 */
-.io-bar {
-  display: flex; gap: 8px; padding: 12px 14px 4px;
-}
-.io {
-  flex: 1; font-size: 12px; padding: 9px 0; border-radius: 10px;
-  background: #fff; color: var(--text-2);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, .06);
-  white-space: nowrap;
-}
-.io:active { background: var(--bg); }
 
 .group { padding: 0 14px; }
 .g-head { display: flex; align-items: center; gap: 10px; padding: 12px 0; }
@@ -517,15 +419,6 @@ function confirmImport(mode) {
 .sbtn.ok { background: var(--brand); color: #fff; font-weight: 600; }
 .sbtn.warn { background: #FFF1E8; color: #FF6B00; font-weight: 600; }
 .sbtn:disabled { opacity: .45; }
-
-/* 导入预览 */
-.imp-sum { font-size: 13px; color: var(--text-2); padding: 12px 0 8px; }
-.imp-preview { display: flex; flex-wrap: wrap; gap: 6px; padding-bottom: 6px; }
-.chip {
-  font-size: 11.5px; padding: 4px 9px; border-radius: 12px;
-  background: var(--bg); color: var(--text-2);
-}
-.chip.more { color: var(--text-3); }
 
 .toast {
   position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%);
