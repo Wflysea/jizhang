@@ -2,11 +2,23 @@
 import { computed, ref } from 'vue'
 import {
   state, monthSummary, dailyGroups, removeRecord, shiftMonth, nowMonth,
-  openEdit, duplicateRecord, accountName
+  openEdit, duplicateRecord, accountName, transferText
 } from '../store/ledger.js'
 import { getCategory } from '../data/categories.js'
 
 const money = n => n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+
+/** 转账：以「转出 → 转入」形式展示；普通收支显示分类名 */
+function titleOf(r) {
+  return r.type === 'transfer' ? '转账' : getCategory(r.type, r.categoryId).name
+}
+function subOf(r) {
+  if (r.type === 'transfer') return transferText(r) + (r.note ? ` · ${r.note}` : '')
+  return r.note || accountName(r.accountId)
+}
+function iconOf(r) {
+  return r.type === 'transfer' ? '🔄' : getCategory(r.type, r.categoryId).icon
+}
 
 const isCurrent = computed(() => state.month === nowMonth())
 
@@ -153,13 +165,13 @@ function actDel(r) {
             @pointercancel="onUp(r, $event)"
             @click="onItemClick(r)"
           >
-            <span class="ico">{{ getCategory(r.type, r.categoryId).icon }}</span>
+            <span class="ico" :class="{ tf: r.type === 'transfer' }">{{ iconOf(r) }}</span>
             <div class="mid">
-              <div class="name">{{ getCategory(r.type, r.categoryId).name }}</div>
-              <div class="sub">{{ r.note || accountName(r.accountId) }}</div>
+              <div class="name">{{ titleOf(r) }}</div>
+              <div class="sub">{{ subOf(r) }}</div>
             </div>
             <span class="amt amount-font" :class="r.type">
-              {{ r.type === 'income' ? '+' : '-' }}{{ money(r.amount) }}
+              {{ r.type === 'transfer' ? '' : (r.type === 'income' ? '+' : '-') }}{{ money(r.amount) }}
             </span>
           </div>
 
@@ -231,6 +243,8 @@ function actDel(r) {
 .amt { font-size: 15px; font-weight: 600; }
 .amt.expense { color: var(--expense); }
 .amt.income { color: var(--income); }
+.amt.transfer { color: var(--text-2); }
+.ico.tf { background: #E6F2FF; }
 
 .acts {
   position: absolute; right: 0; top: 0; bottom: 0; z-index: 1;

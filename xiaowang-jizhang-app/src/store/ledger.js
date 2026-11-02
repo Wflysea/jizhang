@@ -72,6 +72,20 @@ function seedRecords(accounts) {
         date, note: '', createdAt: Date.now()
       })
     }
+    // 每月一次账户互转（演示转账流水：转出 −、转入 +，不计收支）
+    if (pool.length > 1) {
+      const from = pickAccount()
+      const rest = pool.filter(id => id !== from)
+      const to = rest[Math.floor(Math.random() * rest.length)]
+      list.push({
+        id: `s_${m}_tf`, type: 'transfer',
+        amount: Math.round(rand(1500, 4000) * 100) / 100,
+        fromAccountId: from, toAccountId: to,
+        date: fmtDate(new Date(d.getFullYear(), d.getMonth(), Math.min(12, maxDay))),
+        note: '账户互转', createdAt: Date.now()
+      })
+    }
+
     if (Math.random() > 0.45) {
       const [cid, lo, hi] = pick(incomePool)
       list.push({
@@ -149,12 +163,14 @@ export const monthRecords = computed(() =>
 )
 
 export const monthSummary = computed(() => {
-  let income = 0, expense = 0
+  let income = 0, expense = 0, transfer = 0
   for (const r of monthRecords.value) {
+    // 转账只是资金在账户间搬动，不计入收入 / 支出，也不影响结余
+    if (r.type === 'transfer') { transfer += r.amount; continue }
     if (r.type === 'income') income += r.amount
     else expense += r.amount
   }
-  return { income, expense, balance: income - expense }
+  return { income, expense, balance: income - expense, transfer }
 })
 
 /** 按日分组，用于明细页瀑布列表 */
@@ -166,7 +182,11 @@ export const dailyGroups = computed(() => {
   }
   return [...map.entries()].map(([date, items]) => {
     let income = 0, expense = 0
-    for (const r of items) (r.type === 'income' ? (income += r.amount) : (expense += r.amount))
+    for (const r of items) {
+      if (r.type === 'transfer') continue   // 转账不计入当日收支
+      if (r.type === 'income') income += r.amount
+      else expense += r.amount
+    }
     return { date, items, income, expense }
   })
 })
@@ -195,6 +215,7 @@ export const trend = computed(() => {
     let income = 0, expense = 0
     for (const r of state.records) {
       if (r.date.slice(0, 7) !== m) continue
+      if (r.type === 'transfer') continue
       if (r.type === 'income') income += r.amount
       else expense += r.amount
     }
@@ -203,16 +224,21 @@ export const trend = computed(() => {
   return out
 })
 
-/** 二级：每个具体账号的余额与流水笔数 */
+/** 二级：每个具体账号的余额与流水笔数（含转账转入 / 转出） */
 export const accountBalances = computed(() =>
   state.accounts.map(a => {
-    let balance = 0, count = 0
+    let balance = 0, count = 0, transferIn = 0, transferOut = 0
     for (const r of state.records) {
+      if (r.type === 'transfer') {
+        if (r.fromAccountId === a.id) { balance -= r.amount; transferOut += r.amount; count++ }
+        else if (r.toAccountId === a.id) { balance += r.amount; transferIn += r.amount; count++ }
+        continue
+      }
       if (r.accountId !== a.id) continue
       balance += r.type === 'income' ? r.amount : -r.amount
       count++
     }
-    return { ...a, balance, count }
+    return { ...a, balance: Math.round(balance * 100) / 100, count, transferIn, transferOut }
   })
 )
 
@@ -239,10 +265,15 @@ export function removeRecord(id) {
   if (i > -1) state.records.splice(i, 1)
 }
 
-/** 单个账号当前余额（收入 - 支出） */
+/** 单个账号当前余额（收入 - 支出 + 转入 - 转出） */
 export function accountBalanceOf(id) {
   let balance = 0
   for (const r of state.records) {
+    if (r.type === 'transfer') {
+      if (r.fromAccountId === id) balance -= r.amount
+      else if (r.toAccountId === id) balance += r.amount
+      continue
+    }
     if (r.accountId !== id) continue
     balance += r.type === 'income' ? r.amount : -r.amount
   }
@@ -279,6 +310,7 @@ export function adjustBalance(accountId, target, date, note) {
 }
 
 export function openAdd(type = 'expense') {
+  if (type === 'transfer') { openTransfer(); return }
   state.editing = {
     id: null,
     type,
@@ -290,10 +322,39 @@ export function openAdd(type = 'expense') {
   }
 }
 
+/**
+ * 打开转账页：从 A 账户转到 B 账户，金额只记一次，
+ * 保存后生成一条 transfer 流水（转出账户 -、转入账户 +）。
+ */
+export function openTransfer(fromId) {
+  const from = fromId || defaultAccountId()
+  state.editing = {
+    id: null,
+    type: 'transfer',
+    amount: '',
+    fromAccountId: from,
+    toAccountId: suggestAccountId(from),
+    note: '',
+    date: today()
+  }
+}
+
 /** 打开已有记录的编辑页（明细点击 / 左滑「编辑」） */
 export function openEdit(id) {
   const r = state.records.find(x => x.id === id)
   if (!r) return
+  if (r.type === 'transfer') {
+    state.editing = {
+      id: r.id,
+      type: 'transfer',
+      amount: String(r.amount),
+      fromAccountId: r.fromAccountId,
+      toAccountId: r.toAccountId,
+      note: r.note || '',
+      date: r.date
+    }
+    return
+  }
   state.editing = {
     id: r.id,
     type: r.type,
@@ -322,6 +383,15 @@ function defaultAccountId() {
 }
 
 /**
+ * 推荐一个账号 id：可排除指定账号（转账时避免转入转出同一账户）。
+ * 无可选账号时返回空串，由 UI 提示用户先添加账户。
+ */
+export function suggestAccountId(excludeId) {
+  const list = state.accounts.filter(a => a.id !== excludeId)
+  return (list.find(a => a.id === 'wechat') || list[0] || {}).id || ''
+}
+
+/**
  * 载入示例数据（「我的」页手动触发），用于快速体验图表效果。
  * @returns {number} 生成的笔数；无账号时返回 0
  */
@@ -335,11 +405,39 @@ export function loadSample() {
 
 export function closeAdd() { state.editing = null }
 
+/**
+ * 保存当前编辑内容。
+ * @returns {boolean} 保存成功与否；金额为 0、未选账户、转账账户相同时返回 false
+ */
 export function saveEditing() {
   const e = state.editing
   if (!e) return false
   const amount = parseFloat(e.amount)
   if (!amount || amount <= 0) return false
+
+  /* 转账：校验两个账户都存在且不相同，然后写入一条 transfer 流水 */
+  if (e.type === 'transfer') {
+    if (!e.fromAccountId || !e.toAccountId) return false
+    if (e.fromAccountId === e.toAccountId) return false
+    const payload = {
+      type: 'transfer',
+      amount: Math.round(amount * 100) / 100,
+      fromAccountId: e.fromAccountId,
+      toAccountId: e.toAccountId,
+      note: e.note.trim(),
+      date: e.date
+    }
+    if (e.id) {
+      const r = state.records.find(x => x.id === e.id)
+      if (r) Object.assign(r, payload)
+    } else {
+      addRecord(payload)
+    }
+    state.month = e.date.slice(0, 7)
+    closeAdd()
+    return true
+  }
+
   if (!e.accountId) return false   // 未选择账户（新安装未添加账号时）
   const payload = {
     type: e.type,
@@ -351,7 +449,12 @@ export function saveEditing() {
   }
   if (e.id) {
     const r = state.records.find(x => x.id === e.id)
-    if (r) Object.assign(r, payload)
+    if (r) {
+      // 由转账改回普通收支时，清掉残留的转账字段
+      delete r.fromAccountId
+      delete r.toAccountId
+      Object.assign(r, payload)
+    }
   } else {
     addRecord(payload)
   }
@@ -400,4 +503,10 @@ export function removeAccount(id) {
 export function accountName(id) {
   const a = state.accounts.find(x => x.id === id)
   return a ? a.name : '已删除账号'
+}
+
+/** 转账流水说明：转出 → 转入（明细展示与 Excel 导出共用） */
+export function transferText(r) {
+  if (r.type !== 'transfer') return accountName(r.accountId)
+  return `${accountName(r.fromAccountId)} → ${accountName(r.toAccountId)}`
 }

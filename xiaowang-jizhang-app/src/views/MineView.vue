@@ -1,6 +1,6 @@
 <script setup>
 import * as XLSX from 'xlsx'
-import { state, clearAll, accountName, loadSample } from '../store/ledger.js'
+import { state, clearAll, accountName, loadSample, transferText } from '../store/ledger.js'
 import { getCategory } from '../data/categories.js'
 import { exportFile, exportToast } from '../utils/fileExport.js'
 import pkg from '../../package.json'
@@ -16,16 +16,17 @@ async function exportXlsx() {
   // 表1：明细流水
   const detail = sorted.map(r => ({
     '日期': r.date,
-    '类型': r.type === 'income' ? '收入' : '支出',
-    '分类': getCategory(r.type, r.categoryId).name,
+    '类型': r.type === 'transfer' ? '转账' : (r.type === 'income' ? '收入' : '支出'),
+    '分类': r.type === 'transfer' ? '转账' : getCategory(r.type, r.categoryId).name,
     '金额': r.amount,
-    '账户': accountName(r.accountId),
+    '账户': transferText(r),
     '备注': r.note || ''
   }))
 
-  // 表2：分类汇总（按类型分别统计）
+  // 表2：分类汇总（按类型分别统计；转账不计入收支）
   const catMap = new Map()
   for (const r of state.records) {
+    if (r.type === 'transfer') continue
     const key = `${r.type === 'income' ? '收入' : '支出'}-${getCategory(r.type, r.categoryId).name}`
     if (!catMap.has(key)) catMap.set(key, { '类型': r.type === 'income' ? '收入' : '支出', '分类': getCategory(r.type, r.categoryId).name, '金额': 0, '笔数': 0 })
     const it = catMap.get(key)
@@ -37,6 +38,7 @@ async function exportXlsx() {
   // 表3：月度汇总
   const monMap = new Map()
   for (const r of state.records) {
+    if (r.type === 'transfer') continue
     const m = r.date.slice(0, 7)
     if (!monMap.has(m)) monMap.set(m, { '月份': m, '收入': 0, '支出': 0, '结余': 0 })
     const it = monMap.get(m)

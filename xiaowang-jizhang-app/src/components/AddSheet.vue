@@ -1,12 +1,24 @@
 <script setup>
 import { computed, ref, watch, nextTick } from 'vue'
 import {
-  state, saveEditing, closeAdd, removeEditing, accountGroups, addAccount
+  state, saveEditing, closeAdd, removeEditing, accountGroups, addAccount,
+  suggestAccountId, accountBalances, money
 } from '../store/ledger.js'
 import { getCategories } from '../data/categories.js'
 
 const e = computed(() => state.editing)
 const cats = computed(() => getCategories(e.value.type))
+const isTransfer = computed(() => e.value.type === 'transfer')
+
+/** 账号 id → 余额，用于转账时展示目标账户余额 */
+const balanceMap = computed(() => {
+  const m = {}
+  for (const a of accountBalances.value) m[a.id] = a.balance
+  return m
+})
+function balOf(id) {
+  return id ? money(balanceMap.value[id] ?? 0) : '0.00'
+}
 
 /* 每次打开（新增 / 编辑）都重置两级账户选择器 */
 watch(
@@ -14,33 +26,55 @@ watch(
   () => { showPicker.value = false; curGroup.value = null; inlineAdd.value = false }
 )
 
-/* ===== 两级账户选择：一级账户类型 → 二级具体账号 ===== */
+/* ===== 两级账户选择：一级账户类型 → 二级具体账号 =====
+ * pickerTarget 决定写入哪个字段：
+ *   accountId      —— 普通收支
+ *   fromAccountId  —— 转账转出账户
+ *   toAccountId    —— 转账转入账户
+ */
 const showPicker = ref(false)
 const curGroup = ref(null)
+const pickerTarget = ref('accountId')
+
+/** 当前选择器绑定的账号 id */
+const targetId = computed(() => e.value[pickerTarget.value])
 
 /** 当前选中账号所属类型，未选则默认第一个有账号的类型 */
 const activeGroup = computed(() => {
   if (curGroup.value) return curGroup.value
-  const cur = accountGroups.value.find(g => g.items.some(a => a.id === e.value.accountId))
+  const cur = accountGroups.value.find(g => g.items.some(a => a.id === targetId.value))
   return (cur || accountGroups.value.find(g => g.items.length) || accountGroups.value[0]).id
 })
 const groupAccounts = computed(() =>
   (accountGroups.value.find(g => g.id === activeGroup.value) || {}).items || []
 )
-const accountLabel = computed(() => {
-  const g = accountGroups.value.find(x => x.items.some(a => a.id === e.value.accountId))
-  const a = g && g.items.find(x => x.id === e.value.accountId)
-  return a ? `${g.icon} ${g.name} · ${a.name}` : '选择账户'
-})
 
-function openPicker() {
-  const g = accountGroups.value.find(x => x.items.some(a => a.id === e.value.accountId))
+/** 指定字段当前账户的展示文案 */
+function labelOf(field) {
+  const id = e.value[field]
+  const g = accountGroups.value.find(x => x.items.some(a => a.id === id))
+  const a = g && g.items.find(x => x.id === id)
+  return a ? `${g.icon} ${g.name} · ${a.name}` : '选择账户'
+}
+const accountLabel = computed(() => labelOf('accountId'))
+const fromLabel = computed(() => labelOf('fromAccountId'))
+const toLabel = computed(() => labelOf('toAccountId'))
+const pickerTitle = computed(() => ({
+  accountId: '选择账户',
+  fromAccountId: '选择转出账户',
+  toAccountId: '选择转入账户'
+}[pickerTarget.value] || '选择账户'))
+
+function openPicker(target = 'accountId') {
+  pickerTarget.value = target
+  const id = e.value[target]
+  const g = accountGroups.value.find(x => x.items.some(a => a.id === id))
   curGroup.value = g ? g.id : (accountGroups.value.find(x => x.items.length) || accountGroups.value[0]).id
   showPicker.value = true
   inlineAdd.value = false
 }
 function pickAccount(a) {
-  e.value.accountId = a.id
+  e.value[pickerTarget.value] = a.id
   showPicker.value = false
 }
 
@@ -61,7 +95,7 @@ function cancelInlineAdd() {
 function confirmInlineAdd() {
   const id = addAccount(activeGroup.value, newAccName.value)
   if (!id) return
-  e.value.accountId = id      // 新建后即选中
+  e.value[pickerTarget.value] = id      // 新建后即选中
   curGroup.value = activeGroup.value
   cancelInlineAdd()
   showPicker.value = false
@@ -89,14 +123,42 @@ function back() { e.value.amount = e.value.amount.slice(0, -1) }
 function clear() { e.value.amount = '' }
 
 function pickType(t) {
-  e.value.type = t
-  e.value.categoryId = getCategories(t)[0].id
+  const cur = e.value
+  if (t === 'transfer') {
+    // 切到转账：沿用当前账户作为转出方，并自动挑一个不同的转入方
+    const from = cur.fromAccountId || cur.accountId || suggestAccountId()
+    cur.fromAccountId = from
+    if (!cur.toAccountId || cur.toAccountId === from) cur.toAccountId = suggestAccountId(from)
+    cur.type = 'transfer'
+    return
+  }
+  // 切回收支：转出账户作为记账账户，并重置为该类型的第一个分类
+  cur.accountId = cur.fromAccountId || cur.accountId || suggestAccountId()
+  cur.type = t
+  cur.categoryId = getCategories(t)[0].id
+}
+
+/** 转账：一键互换转出 / 转入账户 */
+function swapAccount() {
+  const f = e.value.fromAccountId
+  e.value.fromAccountId = e.value.toAccountId
+  e.value.toAccountId = f
 }
 
 function save() {
-  if (!e.value.accountId) {
+  if (isTransfer.value) {
+    if (!e.value.fromAccountId || !e.value.toAccountId) {
+      alert('请分别选择转出账户和转入账户')
+      openPicker(e.value.fromAccountId ? 'toAccountId' : 'fromAccountId')
+      return
+    }
+    if (e.value.fromAccountId === e.value.toAccountId) {
+      alert('转出账户和转入账户不能相同')
+      return
+    }
+  } else if (!e.value.accountId) {
     alert('还没有账户，请先选择或新建一个账户')
-    openPicker()
+    openPicker('accountId')
     return
   }
   const ok = saveEditing()
@@ -117,6 +179,7 @@ const displayAmount = computed(() => e.value.amount || '0')
       <div class="switch">
         <button :class="{ on: e.type === 'expense' }" @click="pickType('expense')">支出</button>
         <button :class="{ on: e.type === 'income' }" @click="pickType('income')">收入</button>
+        <button :class="{ on: isTransfer }" @click="pickType('transfer')">转账</button>
       </div>
       <button v-if="e.id" class="del" @click="del">删除</button>
       <button class="close" @click="closeAdd">✕</button>
@@ -127,8 +190,34 @@ const displayAmount = computed(() => e.value.amount || '0')
       <span class="amount amount-font">{{ displayAmount }}</span>
     </div>
 
-    <!-- 分类网格 -->
-    <div class="cats">
+    <!-- 转账：转出账户 ⇄ 转入账户 -->
+    <div v-if="isTransfer" class="transfer">
+      <button class="tf-row" @click="openPicker('fromAccountId')">
+        <span class="tf-k out">转出</span>
+        <span class="tf-v">{{ fromLabel }}</span>
+        <span class="tf-b amount-font">¥{{ balOf(e.fromAccountId) }}</span>
+      </button>
+
+      <button class="tf-swap" @click="swapAccount" title="互换转出/转入">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 8h13l-3.5-3.5" />
+          <path d="M20 16H7l3.5 3.5" />
+        </svg>
+      </button>
+
+      <button class="tf-row" @click="openPicker('toAccountId')">
+        <span class="tf-k in">转入</span>
+        <span class="tf-v">{{ toLabel }}</span>
+        <span class="tf-b amount-font">¥{{ balOf(e.toAccountId) }}</span>
+      </button>
+
+      <p class="tf-tip">
+        转账不计入收入与支出，只改变两个账户的余额（转出 −、转入 +）
+      </p>
+    </div>
+
+    <!-- 收支：分类网格 -->
+    <div v-else class="cats">
       <button
         v-for="c in cats" :key="c.id"
         class="cat"
@@ -144,13 +233,13 @@ const displayAmount = computed(() => e.value.amount || '0')
     <div class="meta">
       <input class="note" v-model="e.note" placeholder="添加备注…" maxlength="30" />
       <input class="date" type="date" v-model="e.date" />
-      <button class="acc" @click="openPicker">{{ accountLabel }}</button>
+      <button v-if="!isTransfer" class="acc" @click="openPicker('accountId')">{{ accountLabel }}</button>
     </div>
 
     <!-- 两级账户选择器 -->
     <div v-if="showPicker" class="mask" @click="showPicker = false">
       <div class="picker" @click.stop>
-        <div class="pk-head">选择账户</div>
+        <div class="pk-head">{{ pickerTitle }}</div>
         <div class="pk-body">
           <div class="pk-col">
             <button
@@ -164,9 +253,12 @@ const displayAmount = computed(() => e.value.amount || '0')
           <div class="pk-col right">
             <button
               v-for="a in groupAccounts" :key="a.id"
-              class="pk-item" :class="{ sel: a.id === e.accountId }"
+              class="pk-item" :class="{ sel: a.id === targetId }"
               @click="pickAccount(a)"
-            >{{ a.name }}</button>
+            >
+              {{ a.name }}
+              <em class="pk-bal amount-font">¥{{ balOf(a.id) }}</em>
+            </button>
             <p v-if="!groupAccounts.length && !inlineAdd" class="pk-empty">
               该类型下暂无账号<br />可直接新建
             </p>
@@ -219,7 +311,7 @@ const displayAmount = computed(() => e.value.amount || '0')
 }
 .switch { display: flex; background: var(--bg); border-radius: 20px; padding: 3px; }
 .switch button {
-  padding: 6px 26px; border-radius: 18px; font-size: 14px; color: var(--text-2);
+  padding: 6px 17px; border-radius: 18px; font-size: 13.5px; color: var(--text-2);
   transition: .18s;
 }
 .switch button.on { background: var(--brand); color: #fff; font-weight: 600; }
@@ -258,6 +350,42 @@ const displayAmount = computed(() => e.value.amount || '0')
 .cat-name { font-size: 11px; color: var(--text-2); }
 .cat.sel .cat-icon { box-shadow: 0 0 0 2px var(--brand); transform: scale(1.06); }
 .cat.sel .cat-name { color: var(--brand); font-weight: 600; }
+
+/* 转账：转出 ⇄ 转入 */
+.transfer {
+  flex: 1; overflow-y: auto;
+  padding: 14px 16px 8px;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.tf-row {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; padding: 12px 12px;
+  background: var(--bg); border-radius: 12px;
+  text-align: left;
+}
+.tf-row:active { background: #EFEFEF; }
+.tf-k {
+  font-size: 12px; font-weight: 600; flex-shrink: 0;
+  width: 38px; height: 24px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff;
+}
+.tf-k.out { background: #FF7A45; }
+.tf-k.in { background: #00B578; }
+.tf-v {
+  flex: 1; min-width: 0; font-size: 14px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tf-b { font-size: 13px; color: var(--text-3); flex-shrink: 0; }
+.tf-swap {
+  align-self: center; width: 34px; height: 34px; margin: -8px 0;
+  border-radius: 50%; background: #fff; color: var(--brand-dark);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .12);
+  display: flex; align-items: center; justify-content: center;
+  position: relative; z-index: 2;
+}
+.tf-swap:active { transform: scale(.9); }
+.tf-tip { font-size: 11px; color: var(--text-3); line-height: 1.7; padding: 10px 4px 0; }
 
 .meta {
   display: flex; align-items: center; gap: 8px;
@@ -307,9 +435,11 @@ const displayAmount = computed(() => e.value.amount || '0')
 .pk-col.right { width: 62%; background: #fff; }
 .pk-col::-webkit-scrollbar { width: 0; }
 .pk-item {
-  display: flex; align-items: center; gap: 6px; width: 100%;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 6px; width: 100%;
   padding: 12px 14px; font-size: 13px; text-align: left;
 }
+.pk-bal { font-style: normal; font-size: 11.5px; color: var(--text-3); }
 .pk-item.sel { background: #fff; color: var(--brand); font-weight: 600; }
 .pk-col.right .pk-item.sel { background: var(--brand-light); }
 .pk-empty {

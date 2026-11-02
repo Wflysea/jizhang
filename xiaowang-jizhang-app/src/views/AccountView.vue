@@ -3,7 +3,7 @@ import { ref, computed, nextTick } from 'vue'
 import {
   accountGroups, accountBalances,
   addAccount, renameAccount, removeAccount,
-  adjustBalance, accountBalanceOf, money
+  adjustBalance, accountBalanceOf, money, openTransfer
 } from '../store/ledger.js'
 import {
   exportAccountsJson, exportAccountsXlsx,
@@ -18,6 +18,15 @@ const addingGroup = ref(null)  // 正在添加账号的 groupId
 const newName = ref('')
 const renamingId = ref(null)
 const renameVal = ref('')
+
+/* ---------- 转账 ---------- */
+function goTransfer() {
+  if (accountBalances.value.length < 2) {
+    alert('转账需要至少两个账户，请先添加账号')
+    return
+  }
+  openTransfer()
+}
 
 /* ---------- 余额调整 ---------- */
 const adjId = ref(null)
@@ -136,9 +145,15 @@ function confirmImport(mode) {
 <template>
   <div class="page">
     <div class="hero">
-      <span class="lab">净资产</span>
-      <span class="net amount-font">¥{{ money(net) }}</span>
-      <span class="cnt">{{ accountBalances.length }} 个账号 · {{ accountGroups.length }} 类账户</span>
+      <div class="h-left">
+        <span class="lab">净资产</span>
+        <span class="net amount-font">¥{{ money(net) }}</span>
+        <span class="cnt">{{ accountBalances.length }} 个账号 · {{ accountGroups.length }} 类账户</span>
+      </div>
+      <button class="h-tf" @click="goTransfer">
+        <span class="h-tf-ico">🔄</span>
+        <span class="h-tf-txt">转账</span>
+      </button>
     </div>
 
     <!-- 账户信息导入 / 导出 -->
@@ -309,11 +324,26 @@ function confirmImport(mode) {
   background: linear-gradient(160deg, #FFB400, #FF8A00);
   color: #fff;
   padding: calc(20px + var(--safe-top)) 18px 22px;
-  display: flex; flex-direction: column; gap: 4px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
 }
+.h-left { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .lab { font-size: 12px; opacity: .85; }
 .net { font-size: 28px; font-weight: 600; }
 .cnt { font-size: 11px; opacity: .8; }
+
+/* 转账入口 */
+.h-tf {
+  flex-shrink: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 2px;
+  width: 62px; padding: 9px 0;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .22);
+  color: #fff;
+}
+.h-tf:active { background: rgba(255, 255, 255, .36); }
+.h-tf-ico { font-size: 18px; line-height: 1; }
+.h-tf-txt { font-size: 12px; font-weight: 600; }
 
 /* 全新安装引导 */
 .guide { text-align: center; padding: 22px 18px 26px; }

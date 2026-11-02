@@ -31,6 +31,9 @@ export const INCOME_CATEGORIES = [
   { id: 'adjust_i',   name: '余额调整', icon: '⚖️', color: '#8C8C8C' }
 ]
 
+/* 转账：账户之间的资金互转，既不是收入也不是支出，不影响收支统计 */
+export const TRANSFER_META = { id: 'transfer', name: '转账', icon: '🔄', color: '#4DA6FF' }
+
 /* 账户一级：账户类型（内置，固定） */
 export const ACCOUNT_GROUPS = [
   { id: 'cash',      name: '现金账户', icon: '💰' },
@@ -61,15 +64,24 @@ export function normalizeGroupId(groupId) {
 }
 
 export function getCategories(type) {
-  return type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES
+  if (type === 'income') return INCOME_CATEGORIES
+  if (type === 'transfer') return [TRANSFER_META]
+  return EXPENSE_CATEGORIES
 }
 
 export function getCategory(type, id) {
+  // 转账没有分类概念，统一返回转账元信息
+  if (type === 'transfer') return TRANSFER_META
   const list = getCategories(type)
   // 兜底优先落到「其他」，避免落到「余额调整」这类特殊分类
   return list.find(c => c.id === id)
     || list.find(c => c.id.startsWith('other_'))
     || list[0]
+}
+
+/** 是否为转账流水 */
+export function isTransfer(r) {
+  return r.type === 'transfer'
 }
 
 /** 是否为余额调整流水（手动改余额生成，非真实收支） */
