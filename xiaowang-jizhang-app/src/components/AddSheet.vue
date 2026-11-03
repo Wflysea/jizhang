@@ -237,11 +237,17 @@ const displayAmount = computed(() => e.value.amount || '0')
       </button>
     </div>
 
-    <!-- 备注 / 日期 / 账户 -->
+    <!-- 账户选择（放大、独立成行，点击弹出选择器） -->
+    <button v-if="!isTransfer" class="acc-row" @click="openPicker('accountId')">
+      <span class="acc-label">{{ accountLabel }}</span>
+      <span class="acc-bal amount-font">¥{{ balOf(e.accountId) }}</span>
+      <span class="acc-chev">›</span>
+    </button>
+
+    <!-- 备注 / 日期 -->
     <div class="meta">
       <input class="note" v-model="e.note" placeholder="添加备注…" maxlength="30" />
       <input class="date" type="date" v-model="e.date" />
-      <button v-if="!isTransfer" class="acc" @click="openPicker('accountId')">{{ accountLabel }}</button>
     </div>
 
     <!-- 两级账户选择器 -->
@@ -403,9 +409,27 @@ const displayAmount = computed(() => e.value.amount || '0')
   padding: 8px 14px; border-top: 1px solid var(--line);
 }
 .note { flex: 1; font-size: 13px; padding: 8px 10px; background: var(--bg); border-radius: 8px; }
-.date, .acc {
+.date {
   font-size: 12px; padding: 8px; background: var(--bg); border-radius: 8px; color: var(--text-2);
 }
+
+/* 账户选择：放大为独立整行，点击弹出选择器 */
+.acc-row {
+  display: flex; align-items: center; gap: 10px;
+  width: calc(100% - 28px);
+  margin: 12px 14px 0;
+  padding: 14px 14px;
+  background: var(--bg); border-radius: 12px;
+  text-align: left;
+}
+.acc-row:active { background: #EFEFEF; }
+.acc-label {
+  flex: 1; min-width: 0;
+  font-size: 14.5px; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.acc-bal { font-size: 13px; color: var(--text-3); flex-shrink: 0; }
+.acc-chev { font-size: 18px; color: var(--text-3); flex-shrink: 0; line-height: 1; }
 
 .keyboard {
   display: grid;
@@ -434,23 +458,23 @@ const displayAmount = computed(() => e.value.amount || '0')
 }
 .picker {
   width: 100%; background: #fff; border-radius: 14px 14px 0 0;
-  max-height: 58%; display: flex; flex-direction: column;
+  max-height: 66%; display: flex; flex-direction: column;
   animation: up .18s ease;
 }
 .pk-head {
-  padding: 12px; text-align: center; font-size: 13px;
+  padding: 14px; text-align: center; font-size: 14px;
   color: var(--text-2); border-bottom: 1px solid var(--line);
 }
-.pk-body { flex: 1; display: flex; overflow: hidden; min-height: 150px; }
+.pk-body { flex: 1; display: flex; overflow: hidden; min-height: 180px; }
 .pk-col { width: 38%; overflow-y: auto; background: var(--bg); }
 .pk-col.right { width: 62%; background: #fff; }
 .pk-col::-webkit-scrollbar { width: 0; }
 .pk-item {
   display: flex; align-items: center; justify-content: space-between;
-  gap: 6px; width: 100%;
-  padding: 12px 14px; font-size: 13px; text-align: left;
+  gap: 8px; width: 100%;
+  padding: 15px 16px; font-size: 14.5px; text-align: left;
 }
-.pk-bal { font-style: normal; font-size: 11.5px; color: var(--text-3); flex-shrink: 0; }
+.pk-bal { font-style: normal; font-size: 12.5px; color: var(--text-3); flex-shrink: 0; }
 .pk-n { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pk-ex { font-style: normal; font-size: 10px; color: var(--text-3); margin-left: 4px; }
 .pk-item.sel { background: #fff; color: var(--brand); font-weight: 600; }
@@ -474,5 +498,4 @@ const displayAmount = computed(() => e.value.amount || '0')
 .pk-btns { display: flex; gap: 8px; margin-top: 8px; }
 .pk-btn { flex: 1; font-size: 13px; padding: 8px 0; border-radius: 8px; background: var(--bg); color: var(--text-2); }
 .pk-btn.ok { background: var(--brand); color: #fff; font-weight: 600; }
-.acc { max-width: 120px; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>
