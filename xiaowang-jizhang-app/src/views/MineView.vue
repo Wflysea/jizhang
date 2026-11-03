@@ -227,8 +227,8 @@ function reset() {
   display: flex; align-items: center; justify-content: center;
   font-size: 20px; font-weight: 600;
 }
-.name { font-size: 16px; font-weight: 600; }
-.cnt { font-size: 11px; opacity: .85; margin-top: 3px; }
+.name { font-size: 17px; font-weight: 600; }
+.cnt { font-size: 13px; opacity: .85; margin-top: 3px; }
 
 .list { padding: 0 14px; }
 .li {
@@ -239,20 +239,20 @@ function reset() {
 .li:active { opacity: .6; }
 .li:disabled { opacity: .5; }
 .li-ico { font-size: 17px; width: 24px; text-align: center; flex-shrink: 0; }
-.li-txt { flex: 1; font-size: 14px; }
+.li-txt { flex: 1; font-size: 15px; }
 .li-txt.danger { color: var(--expense); }
 .li-sub {
   display: block; font-style: normal;
-  font-size: 11px; color: var(--text-3); margin-top: 3px;
+  font-size: 13px; color: var(--text-3); margin-top: 3px;
 }
 .arrow { color: var(--text-3); font-size: 17px; flex-shrink: 0; }
 
 .tip {
-  font-size: 11px; color: var(--text-3);
+  font-size: 13px; color: var(--text-3);
   padding: 10px 18px 0; line-height: 1.8;
 }
 
-.ver { text-align: center; font-size: 11px; color: var(--text-3); padding: 20px 0; }
+.ver { text-align: center; font-size: 13px; color: var(--text-3); padding: 20px 0; }
 
 /* ---------- 导入弹层 ---------- */
 .mask {
@@ -272,17 +272,17 @@ function reset() {
   position: relative; padding: 14px 14px 10px;
   border-bottom: 1px solid var(--line);
 }
-.sh-title { font-size: 15px; font-weight: 600; }
+.sh-title { font-size: 16px; font-weight: 600; }
 .sh-x { position: absolute; right: 14px; font-size: 17px; color: var(--text-3); }
 
 .sh-body { padding: 6px 16px 10px; }
-.imp-sum { font-size: 13px; color: var(--text-2); padding: 12px 0 6px; line-height: 1.6; }
+.imp-sum { font-size: 14px; color: var(--text-2); padding: 12px 0 6px; line-height: 1.6; }
 .imp-nums { display: flex; gap: 10px; padding-bottom: 10px; }
 .num {
-  font-size: 12px; color: var(--text-2);
+  font-size: 14px; color: var(--text-2);
   background: var(--bg); border-radius: 10px; padding: 6px 12px;
 }
-.num b { color: var(--brand-dark); font-size: 14px; margin-left: 3px; }
+.num b { color: var(--brand-dark); font-size: 15px; margin-left: 3px; }
 
 .imp-preview { display: flex; flex-wrap: wrap; gap: 6px; padding-bottom: 6px; }
 .chip {
@@ -292,7 +292,7 @@ function reset() {
 .chip i { font-style: normal; color: var(--text-3); }
 .chip.more { color: var(--text-3); }
 
-.hint { font-size: 11px; color: var(--text-3); line-height: 1.7; padding: 8px 0 4px; }
+.hint { font-size: 13px; color: var(--text-3); line-height: 1.7; padding: 8px 0 4px; }
 
 .sh-foot {
   display: flex; gap: 10px; padding: 10px 16px 14px;
@@ -300,7 +300,7 @@ function reset() {
 }
 .sbtn {
   flex: 1; padding: 12px 0; border-radius: 12px;
-  font-size: 14px; background: var(--bg); color: var(--text-2);
+  font-size: 15px; background: var(--bg); color: var(--text-2);
 }
 .sbtn.ok { background: var(--brand); color: #fff; font-weight: 600; }
 .sbtn.warn { background: #FFF1E8; color: #FF6B00; font-weight: 600; }

@@ -280,9 +280,9 @@ onBeforeUnmount(registerBack(() => {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
 }
 .h-left { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.lab { font-size: 12px; opacity: .85; }
+.lab { font-size: 14px; opacity: .85; }
 .net { font-size: 28px; font-weight: 600; }
-.cnt { font-size: 11px; opacity: .8; }
+.cnt { font-size: 13px; opacity: .8; }
 
 /* 转账入口 */
 .h-tf {
@@ -296,21 +296,21 @@ onBeforeUnmount(registerBack(() => {
 }
 .h-tf:active { background: rgba(255, 255, 255, .36); }
 .h-tf-ico { font-size: 18px; line-height: 1; }
-.h-tf-txt { font-size: 12px; font-weight: 600; }
+.h-tf-txt { font-size: 14px; font-weight: 600; }
 
 /* 全新安装引导 */
 .guide { text-align: center; padding: 22px 18px 26px; }
 .gd-ico { font-size: 40px; margin-bottom: 10px; }
 .gd-t { font-size: 14.5px; font-weight: 600; color: var(--text-1); margin-bottom: 6px; }
-.gd-d { font-size: 12px; color: var(--text-3); line-height: 1.8; }
+.gd-d { font-size: 14px; color: var(--text-3); line-height: 1.8; }
 
 .group { padding: 0 14px; }
 .g-head { display: flex; align-items: center; gap: 10px; padding: 12px 0; }
 .g-ico { font-size: 22px; width: 26px; text-align: center; }
 .g-info { flex: 1; }
 .g-name { font-size: 14.5px; font-weight: 600; }
-.g-sub { font-size: 11px; color: var(--text-3); margin-top: 2px; }
-.g-bal { font-size: 15px; font-weight: 600; }
+.g-sub { font-size: 13px; color: var(--text-3); margin-top: 2px; }
+.g-bal { font-size: 16px; font-weight: 600; }
 .arrow { color: var(--text-3); font-size: 17px; transition: .2s; }
 .arrow.up { transform: rotate(90deg); }
 
@@ -320,7 +320,7 @@ onBeforeUnmount(registerBack(() => {
 .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--brand); flex-shrink: 0; }
 .a-info { flex: 1; min-width: 0; }
 .a-name { font-size: 13.5px; }
-.a-sub { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+.a-sub { font-size: 13px; color: var(--text-3); margin-top: 2px; }
 
 /* 余额：可点击调整 */
 .a-bal {
@@ -350,15 +350,15 @@ onBeforeUnmount(registerBack(() => {
 /* 已设为不计入资产：高亮为品牌色 */
 .op.on { color: var(--brand-dark); background: var(--brand-light); }
 
-.none { font-size: 12px; color: var(--text-3); padding: 10px 0 10px 4px; }
+.none { font-size: 14px; color: var(--text-3); padding: 10px 0 10px 4px; }
 
 .edit-row { display: flex; align-items: center; gap: 6px; flex: 1; }
 .add-row { padding: 10px 0 8px 4px; }
 .inp {
-  flex: 1; min-width: 0; font-size: 13px; padding: 7px 10px;
+  flex: 1; min-width: 0; font-size: 14px; padding: 7px 10px;
   background: var(--bg); border-radius: 8px;
 }
-.btn { font-size: 12px; padding: 7px 12px; border-radius: 8px; background: var(--bg); color: var(--text-2); }
+.btn { font-size: 14px; padding: 7px 12px; border-radius: 8px; background: var(--bg); color: var(--text-2); }
 .btn.ok { background: var(--brand); color: #fff; font-weight: 600; }
 
 .add-btn {
@@ -367,7 +367,7 @@ onBeforeUnmount(registerBack(() => {
 }
 .add-btn:active { opacity: .6; }
 
-.tip { font-size: 11px; color: var(--text-3); text-align: center; padding: 14px 0; line-height: 1.8; }
+.tip { font-size: 13px; color: var(--text-3); text-align: center; padding: 14px 0; line-height: 1.8; }
 
 /* ---------- 弹层 ---------- */
 .mask {
@@ -387,24 +387,24 @@ onBeforeUnmount(registerBack(() => {
   position: relative; padding: 14px 14px 10px;
   border-bottom: 1px solid var(--line);
 }
-.sh-title { font-size: 15px; font-weight: 600; }
+.sh-title { font-size: 16px; font-weight: 600; }
 .sh-x { position: absolute; right: 14px; font-size: 17px; color: var(--text-3); }
 
 .sh-body { padding: 6px 16px 10px; }
 .row { display: flex; align-items: center; gap: 10px; padding: 11px 0; border-bottom: 1px solid #F7F7F7; }
-.rk { font-size: 13px; color: var(--text-3); width: 62px; flex-shrink: 0; }
-.rv { flex: 1; font-size: 14px; text-align: right; min-width: 0; }
+.rk { font-size: 14px; color: var(--text-3); width: 62px; flex-shrink: 0; }
+.rv { flex: 1; font-size: 15px; text-align: right; min-width: 0; }
 .inp-num {
   font-size: 20px; font-weight: 600; text-align: right;
   padding: 4px 0; background: transparent;
 }
-.inp-date, .inp-txt { font-size: 13px; text-align: right; padding: 4px 0; background: transparent; }
+.inp-date, .inp-txt { font-size: 14px; text-align: right; padding: 4px 0; background: transparent; }
 
-.delta { font-size: 15px; font-weight: 600; }
+.delta { font-size: 16px; font-weight: 600; }
 .delta.plus { color: var(--income); }
 .delta.minus { color: var(--expense); }
 
-.hint { font-size: 11px; color: var(--text-3); line-height: 1.7; padding: 10px 0 4px; }
+.hint { font-size: 13px; color: var(--text-3); line-height: 1.7; padding: 10px 0 4px; }
 
 .sh-foot {
   display: flex; gap: 10px; padding: 10px 16px 14px;
@@ -412,7 +412,7 @@ onBeforeUnmount(registerBack(() => {
 }
 .sbtn {
   flex: 1; padding: 12px 0; border-radius: 12px;
-  font-size: 14px; background: var(--bg); color: var(--text-2);
+  font-size: 15px; background: var(--bg); color: var(--text-2);
 }
 .sbtn.ok { background: var(--brand); color: #fff; font-weight: 600; }
 .sbtn.warn { background: #FFF1E8; color: #FF6B00; font-weight: 600; }
@@ -421,7 +421,7 @@ onBeforeUnmount(registerBack(() => {
 .toast {
   position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%);
   background: rgba(0, 0, 0, .78); color: #fff;
-  font-size: 13px; padding: 9px 18px; border-radius: 20px;
+  font-size: 14px; padding: 9px 18px; border-radius: 20px;
   z-index: 300; animation: fade .18s ease;
 }
 @keyframes fade { from { opacity: 0 } to { opacity: 1 } }

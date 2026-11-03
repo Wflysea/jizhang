@@ -234,7 +234,7 @@ function actDel(r) {
   padding: calc(16px + var(--safe-top)) 16px 16px;
 }
 .topbar h1 { font-size: 19px; font-weight: 700; }
-.topbar .sub { font-size: 11px; opacity: .85; margin-top: 3px; }
+.topbar .sub { font-size: 13px; opacity: .85; margin-top: 3px; }
 
 /* 一级菜单容器 */
 .menu { padding: 10px 0 4px; }
@@ -260,9 +260,9 @@ function actDel(r) {
   display: flex; align-items: center; justify-content: center;
   font-size: 18px; flex-shrink: 0;
 }
-.acc-head .name { font-size: 15px; font-weight: 600; flex-shrink: 0; }
+.acc-head .name { font-size: 16px; font-weight: 600; flex-shrink: 0; }
 .acc-head .sum {
-  flex: 1; text-align: right; font-size: 11px; color: var(--text-2);
+  flex: 1; text-align: right; font-size: 13px; color: var(--text-2);
   display: flex; gap: 10px; justify-content: flex-end;
 }
 .acc-head .sum em { font-style: normal; }
@@ -288,9 +288,9 @@ function actDel(r) {
 }
 .month-bar button { font-size: 20px; color: var(--text-2); width: 28px; }
 .month-bar button:disabled { opacity: .35; }
-.month-bar .month { font-size: 15px; font-weight: 600; }
+.month-bar .month { font-size: 16px; font-weight: 600; }
 .range-label {
-  text-align: center; font-size: 13px; color: var(--text-3);
+  text-align: center; font-size: 14px; color: var(--text-3);
   padding: 8px 0 10px; border-bottom: 1px solid var(--line);
 }
 
@@ -299,7 +299,7 @@ function actDel(r) {
 .day-head {
   display: flex; justify-content: space-between; align-items: center;
   padding: 9px 14px; background: #FAFAFA; border-bottom: 1px solid var(--line);
-  font-size: 12px; color: var(--text-2);
+  font-size: 14px; color: var(--text-2);
 }
 .day-head .s em { font-style: normal; margin-left: 10px; }
 
@@ -321,9 +321,9 @@ function actDel(r) {
   display: flex; align-items: center; justify-content: center; font-size: 18px;
 }
 .mid { flex: 1; min-width: 0; }
-.name { font-size: 14px; }
-.sub { font-size: 11px; color: var(--text-3); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.amt { font-size: 15px; font-weight: 600; }
+.name { font-size: 15px; }
+.sub { font-size: 13px; color: var(--text-3); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.amt { font-size: 16px; font-weight: 600; }
 .amt.expense { color: var(--expense); }
 .amt.income { color: var(--income); }
 .amt.transfer { color: var(--text-2); }
@@ -335,7 +335,7 @@ function actDel(r) {
 }
 .act {
   width: 72px; height: 100%;
-  font-size: 14px; color: #fff; font-weight: 500;
+  font-size: 15px; color: #fff; font-weight: 500;
 }
 .act.copy { background: #8C8C8C; }
 .act.edit { background: #4DA6FF; }
@@ -348,14 +348,14 @@ function actDel(r) {
   padding: 12px 14px 6px; margin-top: 2px;
   border-top: 1px solid var(--line);
 }
-.balance-row .lab { font-size: 13px; color: var(--text-2); }
+.balance-row .lab { font-size: 14px; color: var(--text-2); }
 .balance-row .bal { font-size: 20px; font-weight: 600; }
 .balance-row .bal.pos { color: var(--income); }
 .balance-row .bal.neg { color: var(--expense); }
 
-.empty-mini { text-align: center; padding: 28px 0; color: var(--text-3); font-size: 13px; }
+.empty-mini { text-align: center; padding: 28px 0; color: var(--text-3); font-size: 14px; }
 
-.tip { text-align: center; font-size: 11px; color: var(--text-3); padding: 14px 0 4px; }
+.tip { text-align: center; font-size: 13px; color: var(--text-3); padding: 14px 0 4px; }
 
 .expense { color: var(--expense); }
 .income { color: var(--income); }
@@ -363,7 +363,7 @@ function actDel(r) {
 .toast {
   position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%);
   background: rgba(0, 0, 0, .78); color: #fff;
-  font-size: 13px; padding: 9px 16px; border-radius: 18px;
+  font-size: 14px; padding: 9px 16px; border-radius: 18px;
   z-index: 200; animation: fade .18s ease;
 }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }

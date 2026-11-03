@@ -55,7 +55,7 @@ onMounted(() => {
 .exit-tip {
   position: fixed; left: 50%; bottom: 100px; transform: translateX(-50%);
   background: rgba(0, 0, 0, .78); color: #fff;
-  font-size: 13px; padding: 9px 18px; border-radius: 20px;
+  font-size: 14px; padding: 9px 18px; border-radius: 20px;
   z-index: 999; animation: fade .18s ease;
 }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }

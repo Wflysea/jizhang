@@ -337,7 +337,7 @@ const displayAmount = computed(() => e.value.amount || '0')
 }
 .switch button.on { background: var(--brand); color: #fff; font-weight: 600; }
 .close { position: absolute; right: 14px; top: calc(14px + var(--safe-top)); font-size: 18px; color: var(--text-3); }
-.del { position: absolute; left: 14px; top: calc(14px + var(--safe-top)); font-size: 13px; color: #F5453D; }
+.del { position: absolute; left: 14px; top: calc(14px + var(--safe-top)); font-size: 14px; color: #F5453D; }
 
 .amount-row {
   display: flex; align-items: baseline; justify-content: center;
@@ -368,7 +368,7 @@ const displayAmount = computed(() => e.value.amount || '0')
   font-size: 22px;
   transition: .15s;
 }
-.cat-name { font-size: 11px; color: var(--text-2); }
+.cat-name { font-size: 13px; color: var(--text-2); }
 .cat.sel .cat-icon { box-shadow: 0 0 0 2px var(--brand); transform: scale(1.06); }
 .cat.sel .cat-name { color: var(--brand); font-weight: 600; }
 
@@ -386,7 +386,7 @@ const displayAmount = computed(() => e.value.amount || '0')
 }
 .tf-row:active { background: #EFEFEF; }
 .tf-k {
-  font-size: 12px; font-weight: 600; flex-shrink: 0;
+  font-size: 14px; font-weight: 600; flex-shrink: 0;
   width: 38px; height: 24px; border-radius: 12px;
   display: flex; align-items: center; justify-content: center;
   color: #fff;
@@ -394,10 +394,10 @@ const displayAmount = computed(() => e.value.amount || '0')
 .tf-k.out { background: #FF7A45; }
 .tf-k.in { background: #00B578; }
 .tf-v {
-  flex: 1; min-width: 0; font-size: 14px;
+  flex: 1; min-width: 0; font-size: 15px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.tf-b { font-size: 13px; color: var(--text-3); flex-shrink: 0; }
+.tf-b { font-size: 14px; color: var(--text-3); flex-shrink: 0; }
 .tf-swap {
   align-self: center; width: 34px; height: 34px; margin: -8px 0;
   border-radius: 50%; background: #fff; color: var(--brand-dark);
@@ -406,15 +406,15 @@ const displayAmount = computed(() => e.value.amount || '0')
   position: relative; z-index: 2;
 }
 .tf-swap:active { transform: scale(.9); }
-.tf-tip { font-size: 11px; color: var(--text-3); line-height: 1.7; padding: 10px 4px 0; }
+.tf-tip { font-size: 13px; color: var(--text-3); line-height: 1.7; padding: 10px 4px 0; }
 
 .meta {
   display: flex; align-items: center; gap: 8px;
   padding: 8px 14px; border-top: 1px solid var(--line);
 }
-.note { flex: 1; font-size: 13px; padding: 8px 10px; background: var(--bg); border-radius: 8px; }
+.note { flex: 1; font-size: 14px; padding: 8px 10px; background: var(--bg); border-radius: 8px; }
 .date {
-  font-size: 12px; padding: 8px; background: var(--bg); border-radius: 8px; color: var(--text-2);
+  font-size: 14px; padding: 8px; background: var(--bg); border-radius: 8px; color: var(--text-2);
 }
 
 /* 账户选择：放大为独立整行，点击弹出选择器 */
@@ -432,7 +432,7 @@ const displayAmount = computed(() => e.value.amount || '0')
   font-size: 14.5px; color: var(--text);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.acc-bal { font-size: 13px; color: var(--text-3); flex-shrink: 0; }
+.acc-bal { font-size: 14px; color: var(--text-3); flex-shrink: 0; }
 .acc-chev { font-size: 18px; color: var(--text-3); flex-shrink: 0; line-height: 1; }
 
 .keyboard {
@@ -457,10 +457,10 @@ const displayAmount = computed(() => e.value.amount || '0')
   box-shadow: 0 1px 0 rgba(0,0,0,.06);
 }
 .key:active { background: #EFEFEF; }
-.key.fn { font-size: 15px; color: var(--text-2); }
+.key.fn { font-size: 16px; color: var(--text-2); }
 .key.ok {
   flex: 2;
-  background: var(--brand); color: #fff; font-weight: 600; font-size: 16px;
+  background: var(--brand); color: #fff; font-weight: 600; font-size: 17px;
 }
 
 /* 两级账户选择器 */
@@ -475,7 +475,7 @@ const displayAmount = computed(() => e.value.amount || '0')
   animation: up .18s ease;
 }
 .pk-head {
-  padding: 14px; text-align: center; font-size: 14px;
+  padding: 14px; text-align: center; font-size: 15px;
   color: var(--text-2); border-bottom: 1px solid var(--line);
 }
 .pk-body { flex: 1; display: flex; overflow: hidden; min-height: 180px; }
@@ -489,26 +489,26 @@ const displayAmount = computed(() => e.value.amount || '0')
 }
 .pk-bal { font-style: normal; font-size: 12.5px; color: var(--text-3); flex-shrink: 0; }
 .pk-n { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pk-ex { font-style: normal; font-size: 10px; color: var(--text-3); margin-left: 4px; }
+.pk-ex { font-style: normal; font-size: 11px; color: var(--text-3); margin-left: 4px; }
 .pk-item.sel { background: #fff; color: var(--brand); font-weight: 600; }
 .pk-col.right .pk-item.sel { background: var(--brand-light); }
 .pk-empty {
-  font-size: 12px; color: var(--text-3);
+  font-size: 14px; color: var(--text-3);
   padding: 24px 14px; text-align: center; line-height: 1.7;
 }
 /* 选择器内新建账号 */
 .pk-add {
   width: 100%; text-align: left;
-  font-size: 13px; color: var(--brand); font-weight: 600;
+  font-size: 14px; color: var(--brand); font-weight: 600;
   padding: 12px 14px; border-top: 1px solid var(--line);
 }
 .pk-add:active { background: var(--brand-light); }
 .pk-new { padding: 10px 12px; border-top: 1px solid var(--line); }
 .pk-inp {
-  width: 100%; font-size: 13px; padding: 9px 10px;
+  width: 100%; font-size: 14px; padding: 9px 10px;
   background: var(--bg); border-radius: 8px;
 }
 .pk-btns { display: flex; gap: 8px; margin-top: 8px; }
-.pk-btn { flex: 1; font-size: 13px; padding: 8px 0; border-radius: 8px; background: var(--bg); color: var(--text-2); }
+.pk-btn { flex: 1; font-size: 14px; padding: 8px 0; border-radius: 8px; background: var(--bg); color: var(--text-2); }
 .pk-btn.ok { background: var(--brand); color: #fff; font-weight: 600; }
 </style>

@@ -1,7 +1,7 @@
 {
   "name": "xiaowang-jizhang",
   "private": true,
-  "version": "1.11.2",
+  "version": "1.11.3",
   "type": "module",
   "description": "小王记账 - 安卓记账 App（Vue3 + Vite + Capacitor）",
   "scripts": {

@@ -61,7 +61,7 @@ function onTap(t) {
 }
 
 .tab-icon { font-size: 20px; line-height: 1; filter: grayscale(1); opacity: .55; transition: .18s; }
-.tab-label { font-size: 10px; }
+.tab-label { font-size: 11px; }
 
 .tab.active { color: var(--brand); }
 .tab.active .tab-icon { filter: none; opacity: 1; }

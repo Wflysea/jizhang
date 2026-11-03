@@ -38,7 +38,7 @@ body {
                "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji";
   background: #E9EBEF;
   color: var(--text);
-  font-size: 14px;
+  font-size: 15px;
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
 }
@@ -107,7 +107,7 @@ input, textarea {
 }
 
 .section-title {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
   margin: 16px 14px 8px;
   color: var(--text);

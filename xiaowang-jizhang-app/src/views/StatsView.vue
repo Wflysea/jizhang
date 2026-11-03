@@ -118,7 +118,7 @@ const maxTrend = computed(() => Math.max(1, ...trend.value.flatMap(t => [t.incom
 .month-bar button { font-size: 20px; color: #fff; width: 28px; }
 .month-bar button:disabled { opacity: .35; }
 .switch { display: flex; background: rgba(255,255,255,.22); border-radius: 20px; padding: 3px; width: 200px; margin: 0 auto; }
-.switch button { flex: 1; padding: 6px 0; border-radius: 18px; font-size: 13px; color: #fff; }
+.switch button { flex: 1; padding: 6px 0; border-radius: 18px; font-size: 14px; color: #fff; }
 .switch button.on { background: #fff; color: var(--brand-dark); font-weight: 600; }
 
 .pie-card { display: flex; align-items: center; gap: 12px; }
@@ -128,24 +128,24 @@ const maxTrend = computed(() => Math.max(1, ...trend.value.flatMap(t => [t.incom
   position: absolute; inset: 0; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 2px;
 }
-.pc-lab { font-size: 11px; color: var(--text-3); }
-.pc-val { font-size: 16px; font-weight: 600; }
+.pc-lab { font-size: 13px; color: var(--text-3); }
+.pc-val { font-size: 17px; font-weight: 600; }
 
 .legend { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.lg { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.lg { display: flex; align-items: center; gap: 6px; font-size: 14px; }
 .lg i { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
 .lg-name { flex: 1; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lg-pct { color: var(--text); font-weight: 500; }
-.no-data { font-size: 12px; color: var(--text-3); text-align: center; padding: 12px 0; }
+.no-data { font-size: 14px; color: var(--text-3); text-align: center; padding: 12px 0; }
 
 .rank { display: flex; align-items: center; gap: 10px; padding: 8px 0; }
 .rk-ico { font-size: 17px; width: 22px; text-align: center; }
 .rk-body { flex: 1; min-width: 0; }
-.rk-top { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; }
+.rk-top { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 4px; }
 .rk-amt { font-weight: 600; }
 .bar { height: 6px; background: #F2F3F5; border-radius: 3px; overflow: hidden; }
 .bar i { display: block; height: 100%; border-radius: 3px; transition: width .3s; }
-.rk-pct { font-size: 11px; color: var(--text-3); width: 32px; text-align: right; }
+.rk-pct { font-size: 13px; color: var(--text-3); width: 32px; text-align: right; }
 
 .chart { display: flex; align-items: flex-end; justify-content: space-between; height: 130px; padding: 0 4px; }
 .col { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; }
@@ -153,9 +153,9 @@ const maxTrend = computed(() => Math.max(1, ...trend.value.flatMap(t => [t.incom
 .b { width: 9px; border-radius: 3px 3px 0 0; min-height: 2px; }
 .b.in { background: var(--income); }
 .b.out { background: var(--expense); }
-.x { font-size: 10px; color: var(--text-3); margin-top: 5px; }
+.x { font-size: 11px; color: var(--text-3); margin-top: 5px; }
 
-.legend-h { display: flex; justify-content: center; gap: 20px; font-size: 11px; color: var(--text-2); margin-top: 8px; }
+.legend-h { display: flex; justify-content: center; gap: 20px; font-size: 13px; color: var(--text-2); margin-top: 8px; }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; }
 .dot.in { background: var(--income); }
 .dot.out { background: var(--expense); }
