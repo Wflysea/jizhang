@@ -170,6 +170,21 @@ export const rangeRecords = computed(() => {
 export const rangeSummary = computed(() => summarize(rangeRecords.value))
 export const rangeGroups = computed(() => groupByDay(rangeRecords.value))
 
+/* ---------- 明细页：按指定范围取数（一级菜单各分项独立展开用） ---------- */
+/** 取指定时间范围内的流水（不依赖当前选中项） */
+export function recordsInRange(range) {
+  const { start, end } = rangeBounds(range)
+  return recordsIn(start, end)
+}
+/** 指定范围的收支汇总（转账不计收支，但影响结余） */
+export function summaryOfRange(range) {
+  return summarize(recordsInRange(range))
+}
+/** 指定范围按日分组的明细（二级菜单内容） */
+export function groupsOfRange(range) {
+  return groupByDay(recordsInRange(range))
+}
+
 /** 分类聚合统计，用于饼图与排行榜 */
 export function categoryStats(type) {
   const map = new Map()

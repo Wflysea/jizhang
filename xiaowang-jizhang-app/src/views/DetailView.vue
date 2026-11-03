@@ -1,20 +1,25 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import {
-  state, rangeSummary, rangeGroups, rangeBounds, RANGES,
-  removeRecord, shiftMonth, nowMonth,
-  openEdit, duplicateRecord, accountName, transferText
+  state, RANGES, rangeBounds, shiftMonth, nowMonth,
+  summaryOfRange, groupsOfRange, openEdit,
+  removeRecord, duplicateRecord, accountName, transferText
 } from '../store/ledger.js'
 import { getCategory } from '../data/categories.js'
 
 const money = n => n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 
-/* 当前筛选范围（今天 / 本周 / 本月 / 本年） */
-const summary = computed(() => rangeSummary.value)
-const groups = computed(() => rangeGroups.value)
-const bounds = computed(() => rangeBounds())
-const isMonth = computed(() => state.range === 'month')
-const rangeName = computed(() => (RANGES.find(x => x.id === state.range) || {}).name || '')
+/* 一级菜单（今天 / 本周 / 本月 / 本年）展开状态，默认展开「本月」 */
+const open = reactive({ today: false, week: false, month: true, year: false })
+function isOpen(id) { return !!open[id] }
+function toggle(id) {
+  open[id] = !open[id]
+  if (!open[id]) closeSwipe()   // 收起分项时，关闭可能展开的左右滑操作
+}
+
+/* 一级菜单图标 */
+const RANGE_ICON = { today: '📅', week: '🗓️', month: '📆', year: '📈' }
+function boundsLabel(range) { return rangeBounds(range).label }
 
 /** 转账：以「转出 → 转入」形式展示；普通收支显示分类名 */
 function titleOf(r) {
@@ -129,134 +134,168 @@ function actDel(r) {
 
 <template>
   <div class="page" @pointerdown.self="closeSwipe">
-    <!-- 时间范围筛选 + 收支概览 -->
-    <div class="hero">
-      <div class="range-bar">
-        <button
-          v-for="x in RANGES" :key="x.id"
-          class="rg" :class="{ on: state.range === x.id }"
-          @click="state.range = x.id"
-        >{{ x.name }}</button>
-      </div>
+    <!-- 顶部品牌栏 -->
+    <header class="topbar">
+      <h1>明细</h1>
+      <p class="sub">按 今天 / 本周 / 本月 / 本年 分类查看</p>
+    </header>
 
-      <div v-if="isMonth" class="month-bar">
-        <button @click="state.month = shiftMonth(state.month, -1)">‹</button>
-        <span class="month">{{ state.month.replace('-', '年') }}月</span>
-        <button :disabled="isCurrent" @click="!isCurrent && (state.month = shiftMonth(state.month, 1))">›</button>
-      </div>
-      <div v-else class="month-bar plain">
-        <span class="month">{{ rangeName }} · {{ bounds.label }}</span>
-      </div>
-
-      <div class="summary">
-        <div class="sum-row">
-          <div class="cell">
-            <span class="lab">支出</span>
-            <span class="val amount-font expense">{{ money(summary.expense) }}</span>
-          </div>
-          <div class="cell">
-            <span class="lab">收入</span>
-            <span class="val amount-font income">{{ money(summary.income) }}</span>
-          </div>
-        </div>
-        <div class="sum-row balance-row">
-          <span class="lab">结余</span>
-          <span class="bal amount-font">{{ money(summary.balance) }}</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- 流水 -->
-    <div v-if="groups.length">
-      <div v-for="g in groups" :key="g.date" class="day-card">
-        <div class="day-head">
-          <span class="d">{{ g.date.slice(8) }}日 {{ weekday(g.date) }}</span>
-          <span class="s">
-            <em v-if="g.income" class="income">收 {{ money(g.income) }}</em>
-            <em v-if="g.expense" class="expense">支 {{ money(g.expense) }}</em>
+    <!-- 一级菜单：今天 / 本周 / 本月 / 本年（竖向排列） -->
+    <div class="menu">
+      <section
+        v-for="r in RANGES" :key="r.id"
+        class="acc" :class="{ open: isOpen(r.id) }"
+      >
+        <button class="acc-head" @click="toggle(r.id)">
+          <span class="ico">{{ RANGE_ICON[r.id] }}</span>
+          <span class="name">{{ r.name }}</span>
+          <span class="sum">
+            <em class="expense">支 {{ money(summaryOfRange(r.id).expense) }}</em>
+            <em class="income">收 {{ money(summaryOfRange(r.id).income) }}</em>
           </span>
-        </div>
+          <span class="chev"></span>
+        </button>
 
-        <div v-for="r in g.items" :key="r.id" class="row">
-          <div
-            class="item"
-            :class="{ dragging: dragId === r.id }"
-            :style="{ transform: `translateX(${tx(r)}px)` }"
-            @pointerdown="onDown(r, $event)"
-            @pointermove="onMove(r, $event)"
-            @pointerup="onUp(r, $event)"
-            @pointercancel="onUp(r, $event)"
-            @click="onItemClick(r)"
-          >
-            <span class="ico" :class="{ tf: r.type === 'transfer' }">{{ iconOf(r) }}</span>
-            <div class="mid">
-              <div class="name">{{ titleOf(r) }}</div>
-              <div class="sub">{{ subOf(r) }}</div>
+        <!-- 二级菜单：详细信息（该范围的流水明细） -->
+        <div v-show="isOpen(r.id)" class="acc-body">
+          <!-- 仅「本月」支持左右翻月 -->
+          <div v-if="r.id === 'month'" class="month-bar">
+            <button @click="state.month = shiftMonth(state.month, -1)">‹</button>
+            <span class="month">{{ state.month.replace('-', '年') }}月</span>
+            <button :disabled="isCurrent" @click="!isCurrent && (state.month = shiftMonth(state.month, 1))">›</button>
+          </div>
+          <div v-else class="range-label">{{ boundsLabel(r.id) }}</div>
+
+          <template v-if="groupsOfRange(r.id).length">
+            <div v-for="g in groupsOfRange(r.id)" :key="g.date" class="day">
+              <div class="day-head">
+                <span class="d">{{ g.date.slice(8) }}日 {{ weekday(g.date) }}</span>
+                <span class="s">
+                  <em v-if="g.income" class="income">收 {{ money(g.income) }}</em>
+                  <em v-if="g.expense" class="expense">支 {{ money(g.expense) }}</em>
+                </span>
+              </div>
+
+              <div v-for="item in g.items" :key="item.id" class="row">
+                <div
+                  class="item"
+                  :class="{ dragging: dragId === item.id }"
+                  :style="{ transform: `translateX(${tx(item)}px)` }"
+                  @pointerdown="onDown(item, $event)"
+                  @pointermove="onMove(item, $event)"
+                  @pointerup="onUp(item, $event)"
+                  @pointercancel="onUp(item, $event)"
+                  @click="onItemClick(item)"
+                >
+                  <span class="ico" :class="{ tf: item.type === 'transfer' }">{{ iconOf(item) }}</span>
+                  <div class="mid">
+                    <div class="name">{{ titleOf(item) }}</div>
+                    <div class="sub">{{ subOf(item) }}</div>
+                  </div>
+                  <span class="amt amount-font" :class="item.type">
+                    {{ item.type === 'transfer' ? '' : (item.type === 'income' ? '+' : '-') }}{{ money(item.amount) }}
+                  </span>
+                </div>
+
+                <!-- 左滑露出的操作区 -->
+                <div class="acts">
+                  <button class="act copy" @click="actCopy(item)">复制</button>
+                  <button class="act edit" @click="actEdit(item)">编辑</button>
+                  <button class="act del" @click="actDel(item)">删除</button>
+                </div>
+              </div>
             </div>
-            <span class="amt amount-font" :class="r.type">
-              {{ r.type === 'transfer' ? '' : (r.type === 'income' ? '+' : '-') }}{{ money(r.amount) }}
-            </span>
-          </div>
 
-          <!-- 左滑露出的操作区 -->
-          <div class="acts">
-            <button class="act copy" @click="actCopy(r)">复制</button>
-            <button class="act edit" @click="actEdit(r)">编辑</button>
-            <button class="act del" @click="actDel(r)">删除</button>
-          </div>
+            <!-- 收支结余 -->
+            <div class="balance-row">
+              <span class="lab">结余</span>
+              <span
+                class="bal amount-font"
+                :class="summaryOfRange(r.id).balance >= 0 ? 'pos' : 'neg'"
+              >{{ money(summaryOfRange(r.id).balance) }}</span>
+            </div>
+          </template>
+
+          <div v-else class="empty-mini">{{ r.name }}还没有记账</div>
         </div>
-      </div>
-      <p class="tip">点击记录可编辑，左滑可复制 / 编辑 / 删除</p>
+      </section>
     </div>
 
-    <div v-else class="empty">
-      <div class="empty-ico">🧾</div>
-      <p>{{ rangeName }}还没有记账</p>
-      <span>点击底部 ＋ 记第一笔</span>
-    </div>
+    <p class="tip">点击记录可编辑，左滑可复制 / 编辑 / 删除</p>
 
     <div v-if="toastMsg" class="toast">{{ toastMsg }}</div>
   </div>
 </template>
 
 <style scoped>
-.hero {
+.topbar {
   background: linear-gradient(160deg, #FFB400, #FF8A00);
   color: #fff;
-  padding: calc(14px + var(--safe-top)) 16px 18px;
+  padding: calc(16px + var(--safe-top)) 16px 16px;
 }
-/* 今天 / 本周 / 本月 / 本年 */
-.range-bar {
-  display: flex; gap: 4px; margin: 0 auto 12px;
-  background: rgba(255, 255, 255, .18);
-  border-radius: 16px; padding: 3px;
-}
-.rg {
-  padding: 6px 14px; border-radius: 13px;
-  font-size: 13px; color: #fff; opacity: .82; transition: .18s;
-}
-.rg.on { background: #fff; color: #FF8A00; font-weight: 600; opacity: 1; }
+.topbar h1 { font-size: 19px; font-weight: 700; }
+.topbar .sub { font-size: 11px; opacity: .85; margin-top: 3px; }
 
-.month-bar { display: flex; align-items: center; justify-content: center; gap: 18px; margin-bottom: 14px; }
-.month-bar button { font-size: 20px; color: #fff; opacity: .9; width: 28px; }
+/* 一级菜单容器 */
+.menu { padding: 10px 0 4px; }
+
+/* 折叠卡片 */
+.acc {
+  background: #fff;
+  border-radius: 12px;
+  margin: 10px 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .04);
+}
+
+/* 一级菜单项（竖向排列） */
+.acc-head {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; padding: 14px;
+  background: #fff;
+}
+.acc-head .ico {
+  width: 34px; height: 34px; border-radius: 50%;
+  background: var(--brand-light);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; flex-shrink: 0;
+}
+.acc-head .name { font-size: 15px; font-weight: 600; flex-shrink: 0; }
+.acc-head .sum {
+  flex: 1; text-align: right; font-size: 11px; color: var(--text-2);
+  display: flex; gap: 10px; justify-content: flex-end;
+}
+.acc-head .sum em { font-style: normal; }
+.acc-head .sum .expense { color: var(--expense); }
+.acc-head .sum .income { color: var(--income); }
+
+/* 展开箭头 */
+.chev {
+  width: 8px; height: 8px; flex-shrink: 0;
+  border-right: 2px solid var(--text-3);
+  border-bottom: 2px solid var(--text-3);
+  transform: rotate(45deg);
+  transition: transform .2s ease;
+  margin-left: 2px;
+}
+.acc.open .chev { transform: rotate(225deg); }
+
+/* 二级菜单内容 */
+.acc-body { background: #fff; padding-bottom: 6px; }
+.month-bar {
+  display: flex; align-items: center; justify-content: center; gap: 18px;
+  padding: 6px 0 10px; border-bottom: 1px solid var(--line);
+}
+.month-bar button { font-size: 20px; color: var(--text-2); width: 28px; }
 .month-bar button:disabled { opacity: .35; }
-.month-bar.plain { margin-bottom: 12px; }
-.month { font-size: 15px; font-weight: 600; }
-
-/* 第一行：支出 / 收入；第二行：结余 */
-.summary { display: flex; flex-direction: column; gap: 10px; }
-.sum-row { display: flex; }
-.cell { flex: 1; display: flex; flex-direction: column; gap: 3px; }
-.lab { font-size: 11px; opacity: .85; }
-.val { font-size: 19px; font-weight: 600; }
-
-.balance-row {
-  align-items: baseline; gap: 8px;
-  padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, .22);
+.month-bar .month { font-size: 15px; font-weight: 600; }
+.range-label {
+  text-align: center; font-size: 13px; color: var(--text-3);
+  padding: 8px 0 10px; border-bottom: 1px solid var(--line);
 }
-.bal { font-size: 24px; font-weight: 600; }
 
-.day-card { background: #fff; margin: 10px 12px; border-radius: 12px; overflow: hidden; }
+/* 日分组（二级明细内部） */
+.day { background: #fff; }
 .day-head {
   display: flex; justify-content: space-between; align-items: center;
   padding: 9px 14px; background: #FAFAFA; border-bottom: 1px solid var(--line);
@@ -303,12 +342,20 @@ function actDel(r) {
 .act.del  { background: #F5453D; }
 .act:active { filter: brightness(.92); }
 
-.tip { text-align: center; font-size: 11px; color: var(--text-3); padding: 14px 0 4px; }
+/* 收支结余 */
+.balance-row {
+  display: flex; align-items: baseline; justify-content: space-between;
+  padding: 12px 14px 6px; margin-top: 2px;
+  border-top: 1px solid var(--line);
+}
+.balance-row .lab { font-size: 13px; color: var(--text-2); }
+.balance-row .bal { font-size: 20px; font-weight: 600; }
+.balance-row .bal.pos { color: var(--income); }
+.balance-row .bal.neg { color: var(--expense); }
 
-.empty { text-align: center; padding: 70px 0; color: var(--text-3); }
-.empty-ico { font-size: 46px; margin-bottom: 10px; }
-.empty p { font-size: 14px; color: var(--text-2); margin-bottom: 4px; }
-.empty span { font-size: 12px; }
+.empty-mini { text-align: center; padding: 28px 0; color: var(--text-3); font-size: 13px; }
+
+.tip { text-align: center; font-size: 11px; color: var(--text-3); padding: 14px 0 4px; }
 
 .expense { color: var(--expense); }
 .income { color: var(--income); }
