@@ -298,12 +298,16 @@ const displayAmount = computed(() => e.value.amount || '0')
       </div>
     </div>
 
-    <!-- 数字键盘 -->
+    <!-- 数字键盘：左侧 3 列数字区 + 右侧功能列 -->
     <div class="keyboard">
-      <button v-for="k in KEYS" :key="k" class="key amount-font" @click="press(k)">{{ k }}</button>
-      <button class="key fn" @click="back">⌫</button>
-      <button class="key fn ok" @click="save">完成</button>
-      <button class="key fn" @click="clear">C</button>
+      <div class="num-pad">
+        <button v-for="k in KEYS" :key="k" class="key amount-font" @click="press(k)">{{ k }}</button>
+      </div>
+      <div class="fn-col">
+        <button class="key fn amount-font" @click="back">⌫</button>
+        <button class="key fn amount-font" @click="clear">C</button>
+        <button class="key fn ok" @click="save">完成</button>
+      </div>
     </div>
   </div>
 </template>
@@ -432,12 +436,21 @@ const displayAmount = computed(() => e.value.amount || '0')
 .acc-chev { font-size: 18px; color: var(--text-3); flex-shrink: 0; line-height: 1; }
 
 .keyboard {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 6px;
+  display: flex; gap: 6px;
   padding: 8px 8px 10px;
   background: var(--bg);
 }
+.num-pad {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.fn-col {
+  width: 24%;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.fn-col .key { flex: 1; }
 .key {
   height: 46px; border-radius: 8px; background: #fff;
   font-size: 20px; color: var(--text);
@@ -446,7 +459,7 @@ const displayAmount = computed(() => e.value.amount || '0')
 .key:active { background: #EFEFEF; }
 .key.fn { font-size: 15px; color: var(--text-2); }
 .key.ok {
-  grid-row: span 2; height: auto;
+  flex: 2;
   background: var(--brand); color: #fff; font-weight: 600; font-size: 16px;
 }
 
