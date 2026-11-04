@@ -110,25 +110,80 @@ function confirmInlineAdd() {
 }
 
 const KEYS = ['7', '8', '9', '4', '5', '6', '1', '2', '3', '.', '0']
+const OPS = ['+', '−', '×', '÷']   // − 为 U+2212，视觉更像减号
+function isOp(ch) { return OPS.includes(ch) }
+
+/** 安全求值：支持 + − × ÷ 与小数，遵循先乘除后加减；非法或除零返回 null */
+function evaluate(expr) {
+  if (!expr || typeof expr !== 'string') return null
+  const s = expr.replace(/×/g, '*').replace(/÷/g, '/').replace(/−/g, '-')
+  if (!/^[\d.+\-*/]+$/.test(s)) return null
+  if (/^[+\-*/]/.test(s) || /[+\-*/]$/.test(s)) return null   // 首尾不能是运算符
+  const tokens = s.match(/(\d+\.?\d*|\.\d+)|([+\-*/])/g)
+  if (!tokens || tokens.length % 2 === 0) return null
+  const nums = [], ops = []
+  for (let i = 0; i < tokens.length; i++) {
+    if (i % 2 === 0) {
+      const n = parseFloat(tokens[i])
+      if (isNaN(n)) return null
+      nums.push(n)
+    } else if (!'+-*/'.includes(tokens[i])) return null
+    else ops.push(tokens[i])
+  }
+  // 第一遍：× ÷
+  const r = [nums[0]], rops = []
+  for (let i = 0; i < ops.length; i++) {
+    if (ops[i] === '*' || ops[i] === '/') {
+      const a = r.pop(), b = nums[i + 1]
+      if (ops[i] === '/' && b === 0) return null
+      r.push(ops[i] === '*' ? a * b : a / b)
+    } else { r.push(nums[i + 1]); rops.push(ops[i]) }
+  }
+  // 第二遍：+ −
+  let res = r[0]
+  for (let i = 0; i < rops.length; i++) res = rops[i] === '+' ? res + r[i + 1] : res - r[i + 1]
+  return Math.round(res * 100) / 100
+}
 
 function press(k) {
   const cur = e.value.amount
   if (k === '.') {
-    if (cur === '') e.value.amount = '0.'
-    else if (!cur.includes('.')) e.value.amount = cur + '.'
+    if (cur === '') { e.value.amount = '0.'; return }
+    if (isOp(cur.slice(-1))) { e.value.amount = cur + '0.'; return }
+    const seg = cur.split(/[+\-−×÷]/).pop()
+    if (seg.includes('.')) return
+    e.value.amount = cur + '.'
     return
   }
-  if (cur.includes('.')) {
-    const dec = cur.split('.')[1]
+  if (isOp(k)) {
+    if (cur === '') return
+    if (isOp(cur.slice(-1))) { e.value.amount = cur.slice(0, -1) + k; return }  // 连续运算符则替换
+    e.value.amount = cur + k
+    return
+  }
+  // 数字
+  if (cur.length >= 24) return
+  if (cur === '') { e.value.amount = k; return }
+  if (isOp(cur.slice(-1))) { e.value.amount = cur + k; return }   // 运算符后开启新数字
+  const seg = cur.split(/[+\-−×÷]/).pop()                        // 当前正在输入的数字段
+  if (seg === '0') { e.value.amount = cur.slice(0, -1) + k; return }
+  if (seg.includes('.')) {
+    const dec = seg.split('.')[1]
     if (dec.length >= 2) return
-  } else if (cur.replace('.', '').length >= 9) {
+  } else if (seg.replace('.', '').length >= 9) {
     return
   }
-  if (cur === '0') e.value.amount = k
-  else e.value.amount = cur + k
+  e.value.amount = cur + k
 }
 function back() { e.value.amount = e.value.amount.slice(0, -1) }
 function clear() { e.value.amount = '' }
+
+/** 表达式实时计算结果（仅当包含运算符且可求值时返回数字，否则 null） */
+const computedResult = computed(() => {
+  const expr = e.value.amount
+  if (!expr || !/[+\-−×÷]/.test(expr)) return null
+  return evaluate(expr)
+})
 
 function pickType(t) {
   const cur = e.value
@@ -154,6 +209,13 @@ function swapAccount() {
 }
 
 function save() {
+  // 先把表达式（如 12.5+3）算出最终金额，非法或 ≤0 不给保存
+  const val = evaluate(e.value.amount)
+  if (val == null || val <= 0) {
+    alert('请输入有效的金额')
+    return
+  }
+  e.value.amount = String(Math.round(val * 100) / 100)
   if (isTransfer.value) {
     if (!e.value.fromAccountId || !e.value.toAccountId) {
       alert('请分别选择转出账户和转入账户')
@@ -193,9 +255,12 @@ const displayAmount = computed(() => e.value.amount || '0')
       <button class="close" @click="closeAdd">✕</button>
     </header>
 
-    <div class="amount-row">
-      <span class="cny">¥</span>
-      <span class="amount amount-font">{{ displayAmount }}</span>
+    <div class="amount-box">
+      <div class="amount-row">
+        <span class="cny">¥</span>
+        <span class="amount amount-font">{{ displayAmount }}</span>
+      </div>
+      <div v-if="computedResult != null" class="expr-result amount-font">= {{ money(computedResult) }}</div>
     </div>
 
     <!-- 转账：转出账户 ⇄ 转入账户 -->
@@ -298,10 +363,13 @@ const displayAmount = computed(() => e.value.amount || '0')
       </div>
     </div>
 
-    <!-- 数字键盘：左侧 3 列数字区 + 右侧功能列 -->
+    <!-- 数字键盘：3 列数字区 + 运算符列 + 功能列 -->
     <div class="keyboard">
       <div class="num-pad">
         <button v-for="k in KEYS" :key="k" class="key amount-font" @click="press(k)">{{ k }}</button>
+      </div>
+      <div class="op-col">
+        <button v-for="op in OPS" :key="op" class="key op amount-font" @click="press(op)">{{ op }}</button>
       </div>
       <div class="fn-col">
         <button class="key fn amount-font" @click="back">⌫</button>
@@ -339,9 +407,10 @@ const displayAmount = computed(() => e.value.amount || '0')
 .close { position: absolute; right: 14px; top: calc(14px + var(--safe-top)); font-size: 18px; color: var(--text-3); }
 .del { position: absolute; left: 14px; top: calc(14px + var(--safe-top)); font-size: 14px; color: #F5453D; }
 
+.amount-box { padding-top: 14px; }
 .amount-row {
   display: flex; align-items: baseline; justify-content: center;
-  gap: 4px; padding: 14px 0 10px;
+  gap: 4px; padding: 0 12px 6px;
 }
 .cny { font-size: 20px; color: var(--text-2); }
 .amount {
@@ -349,6 +418,10 @@ const displayAmount = computed(() => e.value.amount || '0')
   min-width: 60px; text-align: center;
   border-bottom: 2px solid var(--brand);
   padding-bottom: 2px;
+}
+.expr-result {
+  text-align: center; font-size: 15px; color: var(--text-2);
+  padding-bottom: 10px;
 }
 
 .cats {
@@ -441,13 +514,17 @@ const displayAmount = computed(() => e.value.amount || '0')
   background: var(--bg);
 }
 .num-pad {
-  flex: 1;
+  flex: 3;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 6px;
 }
+.op-col {
+  flex: 1;
+  display: flex; flex-direction: column; gap: 6px;
+}
 .fn-col {
-  width: 24%;
+  flex: 1;
   display: flex; flex-direction: column; gap: 6px;
 }
 .fn-col .key { flex: 1; }
@@ -457,6 +534,11 @@ const displayAmount = computed(() => e.value.amount || '0')
   box-shadow: 0 1px 0 rgba(0,0,0,.06);
 }
 .key:active { background: #EFEFEF; }
+.key.op {
+  background: var(--brand-light); color: var(--brand-dark);
+  font-size: 22px; font-weight: 600;
+}
+.key.op:active { background: #FCE3BE; }
 .key.fn { font-size: 16px; color: var(--text-2); }
 .key.ok {
   flex: 2;
