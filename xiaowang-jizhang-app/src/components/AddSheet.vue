@@ -2,9 +2,10 @@
 import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue'
 import {
   state, saveEditing, closeAdd, removeEditing, accountGroups, addAccount,
-  suggestAccountId, accountBalances, money
+  suggestAccountId, accountBalances, money, accountName,
+  saveAsTemplate, applyTemplate, removeTemplate
 } from '../store/ledger.js'
-import { getCategories } from '../data/categories.js'
+import { getCategories, getCategory } from '../data/categories.js'
 import { registerBack } from '../utils/back.js'
 
 const e = computed(() => state.editing)
@@ -21,10 +22,13 @@ function balOf(id) {
   return id ? money(balanceMap.value[id] ?? 0) : '0.00'
 }
 
-/* 每次打开（新增 / 编辑）都重置两级账户选择器 */
+/* 每次打开（新增 / 编辑）都重置账户选择器与模板弹层 */
 watch(
   () => state.editing,
-  () => { showPicker.value = false; curGroup.value = null; inlineAdd.value = false }
+  () => {
+    showPicker.value = false; curGroup.value = null; inlineAdd.value = false
+    showTemplates.value = false; savingTpl.value = false; tplName.value = ''
+  }
 )
 
 /* ===== 两级账户选择：一级账户类型 → 二级具体账号 =====
@@ -37,8 +41,9 @@ const showPicker = ref(false)
 const curGroup = ref(null)
 const pickerTarget = ref('accountId')
 
-/* 返回键：先收起账户选择器，再关闭整个编辑页（不会直接退出 App） */
+/* 返回键：先收模板弹层 → 账户选择器 → 关闭整个编辑页（不会直接退出 App） */
 onBeforeUnmount(registerBack(() => {
+  if (showTemplates.value) { closeTemplates(); return true }
   if (showPicker.value) { showPicker.value = false; return true }
   closeAdd()
   return true
@@ -107,6 +112,81 @@ function confirmInlineAdd() {
   curGroup.value = activeGroup.value
   cancelInlineAdd()
   showPicker.value = false
+}
+
+/* ===== 记账模板：把当前这笔存成模板 / 从模板快速记账 ===== */
+const showTemplates = ref(false)
+const savingTpl = ref(false)
+const tplName = ref('')
+const tplInput = ref(null)
+
+function openTemplates() {
+  showPicker.value = false
+  savingTpl.value = false
+  showTemplates.value = true
+}
+function closeTemplates() {
+  showTemplates.value = false
+  savingTpl.value = false
+  tplName.value = ''
+}
+
+/** 默认模板名：备注 → 分类+金额 → 分类；转账用「转账」 */
+function suggestTplName() {
+  const cur = e.value
+  const note = (cur.note || '').trim()
+  if (note) return note.slice(0, 16)
+  if (cur.type === 'transfer') return '转账'
+  const c = getCategory(cur.type, cur.categoryId)
+  const v = evaluate(cur.amount)
+  return v != null && v > 0 ? `${c.name} ${v}` : c.name
+}
+function startSaveTemplate() {
+  showPicker.value = false
+  showTemplates.value = true
+  savingTpl.value = true
+  tplName.value = suggestTplName()
+  nextTick(() => {
+    if (tplInput.value) { tplInput.value.focus(); tplInput.value.select && tplInput.value.select() }
+  })
+}
+function cancelSaveTemplate() {
+  savingTpl.value = false
+  tplName.value = ''
+}
+function confirmSaveTemplate() {
+  // 表达式（如 12+3）先求值成纯数字再存模板；金额为空可留待使用时再填
+  const val = evaluate(e.value.amount)
+  const clean = val != null && val > 0 ? String(Math.round(val * 100) / 100) : ''
+  const t = saveAsTemplate(tplName.value, { ...e.value, amount: clean })
+  if (!t) return                         // 名称为空时保留输入框
+  savingTpl.value = false
+  tplName.value = ''
+}
+function useTemplate(id) {
+  if (applyTemplate(id, e.value)) closeTemplates()
+}
+function askDeleteTemplate(t) {
+  if (confirm(`删除模板「${t.name}」？`)) removeTemplate(t.id)
+}
+function iconOf(t) {
+  return t.type === 'transfer' ? '🔄' : getCategory(t.type, t.categoryId).icon
+}
+function descOf(t) {
+  const typeName = t.type === 'transfer' ? '转账' : (t.type === 'income' ? '收入' : '支出')
+  const bits = [typeName]
+  if (t.type === 'transfer') {
+    bits.push(`${accountName(t.fromAccountId)} → ${accountName(t.toAccountId)}`)
+  } else {
+    bits.push(getCategory(t.type, t.categoryId).name)
+    if (t.accountId) bits.push(accountName(t.accountId))
+  }
+  if (t.note) bits.push(t.note)
+  return bits.join(' · ')
+}
+function amtOf(t) {
+  const n = Number(t.amount)
+  return Number.isFinite(n) && n > 0 ? '¥' + money(n) : '金额待填'
 }
 
 const KEYS = ['7', '8', '9', '4', '5', '6', '1', '2', '3', '.', '0']
@@ -315,6 +395,53 @@ const displayAmount = computed(() => e.value.amount || '0')
       <input class="date" type="date" v-model="e.date" />
     </div>
 
+    <!-- 模板工具条：使用模板 / 把当前这笔存为模板 -->
+    <div class="tpl-bar">
+      <button class="tpl-btn" @click="openTemplates">
+        📑 使用模板<span v-if="state.templates.length" class="tpl-badge">{{ state.templates.length }}</span>
+      </button>
+      <button class="tpl-btn save" @click="startSaveTemplate">⭐ 存为模板</button>
+    </div>
+
+    <!-- 模板弹层 -->
+    <div v-if="showTemplates" class="mask" @click="closeTemplates">
+      <div class="picker tpl-picker" @click.stop>
+        <div class="pk-head">
+          记账模板
+          <button class="tpl-x" @click="closeTemplates">✕</button>
+        </div>
+        <div class="tpl-body">
+          <p v-if="!state.templates.length && !savingTpl" class="tpl-empty">
+            还没有模板<br />点下方按钮把当前这笔存为模板
+          </p>
+          <div v-for="t in state.templates" :key="t.id" class="tpl-item">
+            <button class="tpl-main" @click="useTemplate(t.id)">
+              <span class="tpl-ico">{{ iconOf(t) }}</span>
+              <span class="tpl-info">
+                <span class="tpl-name">{{ t.name }}</span>
+                <span class="tpl-desc">{{ descOf(t) }}</span>
+              </span>
+              <span class="tpl-amt amount-font">{{ amtOf(t) }}</span>
+            </button>
+            <button class="tpl-del" @click="askDeleteTemplate(t)" title="删除模板">✕</button>
+          </div>
+        </div>
+
+        <div v-if="savingTpl" class="pk-new">
+          <input
+            ref="tplInput" v-model="tplName" class="pk-inp"
+            placeholder="模板名称，如：早餐" maxlength="16"
+            @keyup.enter="confirmSaveTemplate"
+          />
+          <div class="pk-btns">
+            <button class="pk-btn ok" @click="confirmSaveTemplate">保存模板</button>
+            <button class="pk-btn" @click="cancelSaveTemplate">取消</button>
+          </div>
+        </div>
+        <button v-else class="pk-add" @click="startSaveTemplate">＋ 把当前这笔存为模板</button>
+      </div>
+    </div>
+
     <!-- 两级账户选择器 -->
     <div v-if="showPicker" class="mask" @click="showPicker = false">
       <div class="picker" @click.stop>
@@ -508,6 +635,26 @@ const displayAmount = computed(() => e.value.amount || '0')
 .acc-bal { font-size: 14px; color: var(--text-3); flex-shrink: 0; }
 .acc-chev { font-size: 18px; color: var(--text-3); flex-shrink: 0; line-height: 1; }
 
+/* 模板工具条 */
+.tpl-bar {
+  display: flex; gap: 10px;
+  padding: 8px 14px 6px;
+}
+.tpl-btn {
+  flex: 1; padding: 9px 6px; border-radius: 9px;
+  background: var(--brand-light); color: var(--brand-dark);
+  font-size: 14px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+}
+.tpl-btn:active { background: #FCE3BE; }
+.tpl-btn.save { background: var(--bg); color: var(--text-2); }
+.tpl-btn.save:active { background: #EAEAEA; }
+.tpl-badge {
+  font-size: 12px; font-weight: 600; color: #fff;
+  background: var(--brand); border-radius: 9px;
+  min-width: 17px; padding: 0 5px; line-height: 17px;
+}
+
 .keyboard {
   display: flex; gap: 6px;
   padding: 8px 8px 10px;
@@ -593,4 +740,41 @@ const displayAmount = computed(() => e.value.amount || '0')
 .pk-btns { display: flex; gap: 8px; margin-top: 8px; }
 .pk-btn { flex: 1; font-size: 14px; padding: 8px 0; border-radius: 8px; background: var(--bg); color: var(--text-2); }
 .pk-btn.ok { background: var(--brand); color: #fff; font-weight: 600; }
+
+/* 记账模板弹层 */
+.tpl-picker { max-height: 72%; }
+.tpl-picker .pk-head { position: relative; font-weight: 600; color: var(--text); }
+.tpl-x { position: absolute; right: 12px; top: 12px; font-size: 17px; color: var(--text-3); }
+.tpl-body { flex: 1; overflow-y: auto; min-height: 120px; }
+.tpl-empty {
+  font-size: 14px; color: var(--text-3);
+  text-align: center; line-height: 1.9; padding: 30px 14px;
+}
+.tpl-item {
+  display: flex; align-items: stretch;
+  border-bottom: 1px solid var(--line);
+}
+.tpl-main {
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 6px 12px 14px; text-align: left;
+}
+.tpl-main:active { background: var(--bg); }
+.tpl-ico {
+  font-size: 22px; width: 34px; flex-shrink: 0; text-align: center;
+}
+.tpl-info { flex: 1; min-width: 0; }
+.tpl-name {
+  display: block; font-size: 15px; font-weight: 600; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tpl-desc {
+  display: block; font-size: 13px; color: var(--text-3); margin-top: 3px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tpl-amt { font-size: 14px; color: var(--brand-dark); flex-shrink: 0; }
+.tpl-del {
+  width: 42px; flex-shrink: 0; font-size: 15px; color: var(--text-3);
+}
+.tpl-del:active { background: var(--bg); }
 </style>

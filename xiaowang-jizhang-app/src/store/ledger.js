@@ -10,6 +10,7 @@ export function money(n) {
 
 const STORAGE_KEY = 'xwj_records_v1'
 const ACCOUNT_KEY = 'xwj_accounts_v1'
+const TEMPLATE_KEY = 'xwj_templates_v1'
 
 /* ---------- 日期工具 ---------- */
 export function pad(n) { return String(n).padStart(2, '0') }
@@ -59,6 +60,18 @@ function loadRecords() {
   return []
 }
 
+/** 记账模板：只存「记一笔」所需的字段，不含日期与记录 id */
+function loadTemplates() {
+  try {
+    const raw = localStorage.getItem(TEMPLATE_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) return parsed
+    }
+  } catch (e) { /* 解析失败则按空模板处理 */ }
+  return []
+}
+
 /* ---------- 全局状态 ---------- */
 export const state = reactive({
   records: loadRecords(),
@@ -66,6 +79,8 @@ export const state = reactive({
   month: nowMonth(),
   /** 明细页时间范围：today | week | month | year */
   range: 'month',
+  /** 记账模板列表（持久化） */
+  templates: loadTemplates(),
   /** 记一笔弹层：null | { type, categoryId, amount, note, date, accountId } */
   editing: null
 })
@@ -115,6 +130,14 @@ watch(
   () => state.accounts,
   (v) => {
     try { localStorage.setItem(ACCOUNT_KEY, JSON.stringify(v)) } catch (e) { /* 忽略配额错误 */ }
+  },
+  { deep: true }
+)
+
+watch(
+  () => state.templates,
+  (v) => {
+    try { localStorage.setItem(TEMPLATE_KEY, JSON.stringify(v)) } catch (e) { /* 忽略配额错误 */ }
   },
   { deep: true }
 )
@@ -406,6 +429,54 @@ export function suggestAccountId(excludeId) {
 }
 
 export function closeAdd() { state.editing = null }
+
+/* ---------- 记账模板 ----------
+ * 模板 = 一笔记账的「可复用字段」（类型/金额/分类/账户/备注），
+ * 不含日期与记录 id，使用时按当天日期填入记账页。
+ */
+const TEMPLATE_FIELDS = [
+  'type', 'amount', 'categoryId', 'accountId', 'fromAccountId', 'toAccountId', 'note'
+]
+let tplSeq = 0
+
+/** 把一笔记账存成模板；name 为空返回 null */
+export function saveAsTemplate(name, editing = state.editing) {
+  if (!editing) return null
+  const n = String(name || '').trim().slice(0, 16)
+  if (!n) return null
+  const t = { id: `tpl_${Date.now()}_${tplSeq++}`, name: n }
+  for (const f of TEMPLATE_FIELDS) {
+    if (editing[f] !== undefined && editing[f] !== null) t[f] = editing[f]
+  }
+  state.templates.unshift(t)
+  return t
+}
+
+/**
+ * 用模板内容填充当前记账页（就地修改，保留当前编辑的 id 与 date）。
+ * 返回 boolean：模板不存在或未打开记账页时返回 false。
+ */
+export function applyTemplate(id, editing = state.editing) {
+  const t = state.templates.find(x => x.id === id)
+  if (!t || !editing) return false
+  // 先清掉旧字段，避免收支↔转账切换时残留 from/to 或 accountId
+  for (const f of TEMPLATE_FIELDS) delete editing[f]
+  for (const f of TEMPLATE_FIELDS) {
+    if (t[f] !== undefined) editing[f] = t[f]
+  }
+  return true
+}
+
+export function removeTemplate(id) {
+  const i = state.templates.findIndex(x => x.id === id)
+  if (i > -1) state.templates.splice(i, 1)
+}
+
+export function renameTemplate(id, name) {
+  const t = state.templates.find(x => x.id === id)
+  const n = String(name || '').trim().slice(0, 16)
+  if (t && n) t.name = n
+}
 
 /**
  * 保存当前编辑内容。

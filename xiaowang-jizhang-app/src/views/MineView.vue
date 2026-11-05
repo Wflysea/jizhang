@@ -58,7 +58,7 @@ function byMonth() {
 }
 
 async function doExport(kind) {
-  if (!state.records.length && !state.accounts.length) {
+  if (!state.records.length && !state.accounts.length && !state.templates.length) {
     alert('还没有任何数据可导出')
     return
   }
@@ -99,9 +99,12 @@ function confirmImport(mode) {
   const r = applyImport(d, mode)
   importing.value = false
   impInfo.value = null
+  const tplText = mode === 'replace'
+    ? `、${r.addedTemplates} 个模板`
+    : `、${r.addedTemplates} 个模板${r.skippedTemplates ? `（跳过 ${r.skippedTemplates} 个重复）` : ''}`
   alert(mode === 'replace'
-    ? `已覆盖导入：${r.addedAccounts} 个账号、${r.addedRecords} 笔流水`
-    : `已合并导入：新增 ${r.addedAccounts} 个账号${r.skippedAccounts ? `（跳过 ${r.skippedAccounts} 个重复）` : ''}、${r.addedRecords} 笔流水${r.skippedRecords ? `（跳过 ${r.skippedRecords} 笔重复）` : ''}` +
+    ? `已覆盖导入：${r.addedAccounts} 个账号、${r.addedRecords} 笔流水${tplText}`
+    : `已合并导入：新增 ${r.addedAccounts} 个账号${r.skippedAccounts ? `（跳过 ${r.skippedAccounts} 个重复）` : ''}、${r.addedRecords} 笔流水${r.skippedRecords ? `（跳过 ${r.skippedRecords} 笔重复）` : ''}${tplText}` +
       (r.createdAccounts ? `；流水引用了未知账户，已自动新建 ${r.createdAccounts} 个` : ''))
 }
 
@@ -111,6 +114,7 @@ const impSummary = computed(() => {
   const parts = []
   if (d.accounts.length) parts.push(`${d.accounts.length} 个账号`)
   if (d.records.length) parts.push(`${d.records.length} 笔流水`)
+  if (d.templates && d.templates.length) parts.push(`${d.templates.length} 个模板`)
   return parts.join('、')
 })
 
@@ -126,7 +130,7 @@ function reset() {
       <div class="who">
         <div class="name">我的账本</div>
         <div class="cnt">
-          共 {{ state.records.length }} 笔记录 · {{ state.accounts.length }} 个账号
+          共 {{ state.records.length }} 笔记录 · {{ state.accounts.length }} 个账号 · {{ state.templates.length }} 个模板
         </div>
       </div>
     </div>
@@ -137,7 +141,7 @@ function reset() {
         <span class="li-ico">📊</span>
         <span class="li-txt">
           导出 Excel
-          <em class="li-sub">明细流水 + 账户 + 分类/月度汇总</em>
+          <em class="li-sub">明细流水 + 账户 + 模板 + 分类/月度汇总</em>
         </span>
         <span class="arrow">›</span>
       </button>
@@ -153,6 +157,7 @@ function reset() {
 
     <p class="tip">
       导出走系统分享面板（可保存到本地、发微信、传网盘）<br />
+      记账模板随 Excel 一起备份，换机或覆盖导入后仍可使用<br />
       导入支持「合并」（保留现有数据，跳过重复）与「覆盖」（替换为文件内容）<br />
       导出的 Excel 可直接改完再导回，无需另存备份文件
     </p>
@@ -189,6 +194,7 @@ function reset() {
           <div class="imp-nums">
             <span v-if="impInfo.accounts.length" class="num">账号 <b>{{ impInfo.accounts.length }}</b></span>
             <span v-if="impInfo.records.length" class="num">流水 <b>{{ impInfo.records.length }}</b></span>
+            <span v-if="impInfo.templates && impInfo.templates.length" class="num">模板 <b>{{ impInfo.templates.length }}</b></span>
           </div>
 
           <div v-if="impInfo.accounts.length" class="imp-preview">

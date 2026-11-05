@@ -8,8 +8,8 @@
  * 导出的表格可直接改完再导回，账户表与流水表少了也能单独导入。
  */
 import * as XLSX from 'xlsx'
-import { state } from '../store/ledger.js'
-import { ACCOUNT_GROUPS, getCategories, normalizeGroupId } from '../data/categories.js'
+import { state, accountName } from '../store/ledger.js'
+import { ACCOUNT_GROUPS, getCategories, getCategory, normalizeGroupId } from '../data/categories.js'
 import { exportFile } from './fileExport.js'
 
 function stamp() {
@@ -45,7 +45,22 @@ export function accountRows(balances) {
   })
 }
 
-/** 导出 Excel：明细流水 + 账户 + 分类汇总 + 月度汇总 */
+/** 模板行（导出用）：账户写名称，回导时按名称/id 还原，避免账户 id 变化后失效 */
+export function templateRows() {
+  return state.templates.map(t => ({
+    '模板名称': t.name,
+    '类型': t.type === 'transfer' ? '转账' : (t.type === 'income' ? '收入' : '支出'),
+    '分类': t.type === 'transfer' ? '转账' : getCategory(t.type, t.categoryId).name,
+    '金额': t.amount === '' || t.amount == null ? '' : money2(t.amount),
+    '账户': t.type === 'transfer'
+      ? `${t.fromAccountId ? accountName(t.fromAccountId) : ''} → ${t.toAccountId ? accountName(t.toAccountId) : ''}`
+      : (t.accountId ? accountName(t.accountId) : ''),
+    '备注': t.note || '',
+    '模板ID': t.id
+  }))
+}
+
+/** 导出 Excel：明细流水 + 账户 + 分类汇总 + 月度汇总 + 模板 */
 export function exportBackupXlsx(balances, summaryBuilders) {
   const wb = XLSX.utils.book_new()
 
@@ -69,13 +84,21 @@ export function exportBackupXlsx(balances, summaryBuilders) {
   wsMon['!cols'] = [{ wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 12 }]
   XLSX.utils.book_append_sheet(wb, wsMon, '月度汇总')
 
+  const tpl = templateRows()
+  if (tpl.length) {
+    const wsTpl = XLSX.utils.json_to_sheet(tpl)
+    wsTpl['!cols'] = [{ wch: 18 }, { wch: 8 }, { wch: 10 }, { wch: 10 }, { wch: 26 }, { wch: 20 }, { wch: 22 }]
+    XLSX.utils.book_append_sheet(wb, wsTpl, '模板')
+  }
+
   const name = `小王记账_导出_${stamp()}.xlsx`
   const b64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' })
   return {
     file: exportFile(name, b64, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
     name,
     accounts: state.accounts.length,
-    records: state.records.length
+    records: state.records.length,
+    templates: tpl.length
   }
 }
 
@@ -207,8 +230,44 @@ function normRecord(row) {
 }
 
 /**
+ * 模板行归一 → 草稿（账户用名称表示，写入时再映射成 id）。
+ * 同时兼容自身产出的英文字段，保证 applyImport 二次归一幂等。
+ */
+function normTemplate(row) {
+  if (!row) return null
+  const name = String(row['模板名称'] ?? row.name ?? '').trim()
+  if (!name) return null
+  const type = toType(row['类型'] ?? row.type)
+  if (!type) return null
+
+  const amountRaw = String(row['金额'] ?? row.amount ?? '').replace(/[¥,\s]/g, '')
+  const amtNum = Number(amountRaw)
+  const amount = amountRaw !== '' && Number.isFinite(amtNum) && amtNum > 0 ? money2(amtNum) : ''
+
+  const o = {
+    id: String(row['模板ID'] ?? row.id ?? '').trim(),
+    name: name.slice(0, 16),
+    type,
+    amount,
+    note: String(row['备注'] ?? row.note ?? '').trim().slice(0, 30)
+  }
+  const accRaw = String(row['账户'] ?? row.account ?? row.accountName ?? '').trim()
+  if (type === 'transfer') {
+    let from = String(row.fromName ?? '').trim()
+    let to = String(row.toName ?? '').trim()
+    if (!from && !to && accRaw) [from, to] = accRaw.split(/\s*(?:→|->|至|to)\s*/)
+    o.fromName = from.slice(0, 16)
+    o.toName = to.slice(0, 16)
+  } else {
+    o.categoryId = toCategory(type, row['分类'] ?? row.categoryId ?? '')
+    o.accountName = accRaw.slice(0, 16)
+  }
+  return o
+}
+
+/**
  * 解析导入文件（仅 .xlsx / .xls）
- * @returns {Promise<{kind, source, accounts, records}>}
+ * @returns {Promise<{kind, source, accounts, records, templates}>}
  *   kind: 'backup'（账号+流水）| 'accounts'（仅账号）| 'records'（仅流水）
  */
 export function parseImportFile(file) {
@@ -226,12 +285,15 @@ export function parseImportFile(file) {
         const wb = XLSX.read(reader.result, { type: 'array' })
         const accounts = []
         const records = []
+        const templates = []
 
         for (const sheetName of wb.SheetNames) {
           const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: '' })
           if (!rows.length) continue
           const head = Object.keys(rows[0])
 
+          // 「模板」表优先判断，避免被误认成流水表
+          const isTemplateSheet = /模板/.test(sheetName) && head.some(h => /模板名称/.test(h))
           const isAccountSheet = /账户|账号/.test(sheetName) ||
             (head.some(h => /账号|账户名称/.test(h)) && !head.some(h => /日期/.test(h)))
           const isRecordSheet = /明细|流水|账目|记录/.test(sheetName) ||
@@ -239,21 +301,26 @@ export function parseImportFile(file) {
           // 分类汇总 / 月度汇总这类统计表不参与导入
           const isSummarySheet = /汇总|统计/.test(sheetName)
 
-          if (isAccountSheet) {
+          if (isTemplateSheet) {
+            for (const r of rows) { const t = normTemplate(r); if (t) templates.push(t) }
+          } else if (isAccountSheet) {
             for (const r of rows) { const a = normAccount(r); if (a) accounts.push(a) }
           } else if (isRecordSheet && !isSummarySheet) {
             for (const r of rows) { const x = normRecord(r); if (x) records.push(x) }
           }
         }
 
-        if (!accounts.length && !records.length) {
-          throw new Error('表格中没有可导入的数据（需含「账户」或「明细流水」工作表）')
+        if (!accounts.length && !records.length && !templates.length) {
+          throw new Error('表格中没有可导入的数据（需含「账户」「明细流水」或「模板」工作表）')
         }
         resolve({
-          kind: accounts.length && records.length ? 'backup' : (accounts.length ? 'accounts' : 'records'),
+          kind: templates.length && !accounts.length && !records.length
+            ? 'templates'
+            : (accounts.length && records.length ? 'backup' : (accounts.length ? 'accounts' : 'records')),
           source: 'Excel',
           accounts,
-          records
+          records,
+          templates
         })
       } catch (e) {
         reject(e)
@@ -291,15 +358,76 @@ function makeResolver(result) {
 }
 
 /**
+ * 模板写入：账户按名称/id 软匹配（匹配不到就留空，不自动新建账户）。
+ * replace 时整体替换；merge 时按 id 或「名称+类型+金额」去重。
+ * 需在账户处理完之后调用，才能正确还原模板里的账户归属。
+ */
+function materializeTemplates(rawTemplates, result, replace) {
+  const resolveId = name => {
+    if (!name) return ''
+    const hit = state.accounts.find(a => a.name === name) || state.accounts.find(a => a.id === name)
+    return hit ? hit.id : ''
+  }
+  const build = (r, i) => {
+    const t = {
+      id: r.id || `imp_t_${Date.now()}_${i}`,
+      name: r.name,
+      type: r.type,
+      amount: r.amount,
+      note: r.note
+    }
+    if (r.type === 'transfer') {
+      t.fromAccountId = resolveId(r.fromName)
+      t.toAccountId = resolveId(r.toName)
+    } else {
+      t.categoryId = r.categoryId
+      t.accountId = resolveId(r.accountName)
+    }
+    return t
+  }
+
+  if (replace) {
+    // 文件未含「模板」表（如旧版导出）时保留现有模板，避免覆盖导入意外丢失
+    if (!rawTemplates.length) return
+    const used = new Set()
+    state.templates = rawTemplates.map((r, i) => {
+      const t = build(r, i)
+      if (used.has(t.id)) t.id = `imp_t_${Date.now()}_${i}`
+      used.add(t.id)
+      return t
+    })
+    result.addedTemplates = state.templates.length
+    return
+  }
+
+  const ids = new Set(state.templates.map(x => x.id))
+  const keys = new Set(state.templates.map(x => `${x.name}|${x.type}|${x.amount}`))
+  for (let i = 0; i < rawTemplates.length; i++) {
+    const r = rawTemplates[i]
+    const key = `${r.name}|${r.type}|${r.amount}`
+    if ((r.id && ids.has(r.id)) || keys.has(key)) { result.skippedTemplates++; continue }
+    const t = build(r, i)
+    ids.add(t.id); keys.add(key)
+    state.templates.push(t)
+    result.addedTemplates++
+  }
+}
+
+/**
  * 写入导入的数据
- * @param {{accounts:Array, records:Array}} data parseImportFile 的结果
+ * @param {{accounts:Array, records:Array, templates:Array}} data parseImportFile 的结果
  * @param {'merge'|'replace'} mode 合并（跳过重复）/ 覆盖（替换全部）
- * @returns {{addedAccounts, skippedAccounts, addedRecords, skippedRecords, createdAccounts}}
+ * @returns {{addedAccounts, skippedAccounts, addedRecords, skippedRecords, createdAccounts, addedTemplates, skippedTemplates}}
  */
 export function applyImport(data, mode = 'merge') {
   const rawAccounts = (data.accounts || []).map(normAccount).filter(Boolean)
   const rawRecords = (data.records || []).map(normRecord).filter(Boolean)
-  const result = { addedAccounts: 0, skippedAccounts: 0, addedRecords: 0, skippedRecords: 0, createdAccounts: 0 }
+  const rawTemplates = (data.templates || []).map(normTemplate).filter(Boolean)
+  const result = {
+    addedAccounts: 0, skippedAccounts: 0,
+    addedRecords: 0, skippedRecords: 0, createdAccounts: 0,
+    addedTemplates: 0, skippedTemplates: 0
+  }
 
   if (mode === 'replace') {
     const used = new Set()
@@ -333,6 +461,7 @@ export function applyImport(data, mode = 'merge') {
       return o
     })
     result.addedRecords = state.records.length
+    materializeTemplates(rawTemplates, result, true)
     return result
   }
 
@@ -373,6 +502,8 @@ export function applyImport(data, mode = 'merge') {
     recIds.add(o.id)
     result.addedRecords++
   }
+
+  materializeTemplates(rawTemplates, result, false)
   return result
 }
 
