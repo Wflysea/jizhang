@@ -28,6 +28,7 @@ watch(
   () => {
     showPicker.value = false; curGroup.value = null; inlineAdd.value = false
     showTemplates.value = false; savingTpl.value = false; tplName.value = ''
+    showPhotoPicker.value = false; previewIdx.value = null
   }
 )
 
@@ -41,8 +42,10 @@ const showPicker = ref(false)
 const curGroup = ref(null)
 const pickerTarget = ref('accountId')
 
-/* 返回键：先收模板弹层 → 账户选择器 → 关闭整个编辑页（不会直接退出 App） */
+/* 返回键：先收图片预览 → 图片选择器 → 模板弹层 → 账户选择器 → 关闭整个编辑页（不会直接退出 App） */
 onBeforeUnmount(registerBack(() => {
+  if (previewIdx.value !== null) { previewIdx.value = null; return true }
+  if (showPhotoPicker.value) { showPhotoPicker.value = false; return true }
   if (showTemplates.value) { closeTemplates(); return true }
   if (showPicker.value) { showPicker.value = false; return true }
   closeAdd()
@@ -119,6 +122,73 @@ const showTemplates = ref(false)
 const savingTpl = ref(false)
 const tplName = ref('')
 const tplInput = ref(null)
+
+/* ===== 凭证图片：拍摄 / 从相册选图，压缩后随这笔记录保存 =====
+ * 图片以 dataURL（JPEG）形式存入记录的 images 数组，最多 6 张。
+ */
+const MAX_IMAGES = 6
+const showPhotoPicker = ref(false)
+const previewIdx = ref(null)      // 大图预览的下标；null 表示关闭
+const camInput = ref(null)        // 拍照（capture）
+const libInput = ref(null)        // 从相册选择
+
+function openPhotoPicker() {
+  showPicker.value = false
+  showPhotoPicker.value = true
+}
+function takePhoto() { showPhotoPicker.value = false; camInput.value && camInput.value.click() }
+function choosePhoto() { showPhotoPicker.value = false; libInput.value && libInput.value.click() }
+
+/** 读取并压缩图片：最长边 ≤ 1080px，JPEG 质量 0.72 */
+function compressImage(file) {
+  return new Promise((resolve, reject) => {
+    if (!file || !/^image\//.test(file.type)) { reject(new Error('请选择图片文件')); return }
+    const reader = new FileReader()
+    reader.onerror = () => reject(new Error('读取失败'))
+    reader.onload = () => {
+      const img = new Image()
+      img.onerror = () => reject(new Error('图片解析失败'))
+      img.onload = () => {
+        let { width, height } = img
+        const MAX = 1080
+        if (width > MAX || height > MAX) {
+          const scale = Math.min(MAX / width, MAX / height)
+          width = Math.round(width * scale)
+          height = Math.round(height * scale)
+        }
+        const canvas = document.createElement('canvas')
+        canvas.width = width; canvas.height = height
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height)
+        resolve(canvas.toDataURL('image/jpeg', 0.72))
+      }
+      img.src = reader.result
+    }
+    reader.readAsDataURL(file)
+  })
+}
+
+async function onFiles(ev) {
+  const files = Array.from(ev.target.files || [])
+  ev.target.value = ''               // 允许重复选择同一文件
+  if (!files.length) return
+  const room = MAX_IMAGES - (e.value.images ? e.value.images.length : 0)
+  if (room <= 0) { alert(`最多只能添加 ${MAX_IMAGES} 张凭证图片`); return }
+  for (const f of files.slice(0, room)) {
+    try {
+      const url = await compressImage(f)
+      if (!e.value.images) e.value.images = []
+      e.value.images.push(url)
+    } catch (err) {
+      alert(err.message || '图片添加失败')
+    }
+  }
+}
+
+function removeImage(i) {
+  if (previewIdx.value === i) previewIdx.value = null
+  if (e.value.images) e.value.images.splice(i, 1)
+}
+function previewImage(i) { previewIdx.value = i }
 
 function openTemplates() {
   showPicker.value = false
@@ -395,6 +465,19 @@ const displayAmount = computed(() => e.value.amount || '0')
       <input class="date" type="date" v-model="e.date" />
     </div>
 
+    <!-- 凭证图片：拍摄 / 相册选图，随这笔记录保存 -->
+    <div class="photo-bar">
+      <div class="thumbs">
+        <div v-for="(img, i) in (e.images || [])" :key="i" class="thumb">
+          <img :src="img" alt="" @click="previewImage(i)" />
+          <button class="thumb-x" @click.stop="removeImage(i)" title="删除">✕</button>
+        </div>
+        <button v-if="(e.images || []).length < 6" class="add-photo" @click="openPhotoPicker">
+          📷<em>凭证</em>
+        </button>
+      </div>
+    </div>
+
     <!-- 模板工具条：使用模板 / 把当前这笔存为模板 -->
     <div class="tpl-bar">
       <button class="tpl-btn" @click="openTemplates">
@@ -489,6 +572,28 @@ const displayAmount = computed(() => e.value.amount || '0')
         </div>
       </div>
     </div>
+
+    <!-- 拍照 / 相册选择弹层 -->
+    <div v-if="showPhotoPicker" class="mask" @click="showPhotoPicker = false">
+      <div class="picker photo-picker" @click.stop>
+        <div class="pk-head">添加凭证图片</div>
+        <button class="ph-opt" @click="takePhoto">📷 拍照</button>
+        <button class="ph-opt" @click="choosePhoto">🖼️ 从相册选择</button>
+        <button class="ph-cancel" @click="showPhotoPicker = false">取消</button>
+      </div>
+    </div>
+
+    <!-- 大图预览 -->
+    <div v-if="previewIdx !== null" class="img-mask" @click="previewIdx = null">
+      <button class="img-close" @click.stop="previewIdx = null">✕</button>
+      <img class="img-full" :src="e.images[previewIdx]" alt="" @click.stop />
+      <button v-if="(e.images||[]).length > 1 && previewIdx > 0" class="img-nav prev" @click.stop="previewIdx--">‹</button>
+      <button v-if="(e.images||[]).length > 1 && previewIdx < e.images.length - 1" class="img-nav next" @click.stop="previewIdx++">›</button>
+    </div>
+
+    <!-- 隐藏的文件输入：拍照 / 相册 -->
+    <input ref="camInput" type="file" accept="image/*" capture="environment" hidden @change="onFiles" />
+    <input ref="libInput" type="file" accept="image/*" hidden @change="onFiles" />
 
     <!-- 数字键盘：3 列数字区 + 运算符列 + 功能列 -->
     <div class="keyboard">
@@ -777,4 +882,61 @@ const displayAmount = computed(() => e.value.amount || '0')
   width: 42px; flex-shrink: 0; font-size: 15px; color: var(--text-3);
 }
 .tpl-del:active { background: var(--bg); }
+
+/* 凭证图片栏 */
+.photo-bar { padding: 0 14px; }
+.thumbs { display: flex; flex-wrap: wrap; gap: 8px; }
+.thumb {
+  position: relative; width: 58px; height: 58px; border-radius: 10px; overflow: hidden;
+  background: var(--bg); flex-shrink: 0;
+}
+.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.thumb:active { opacity: .85; }
+.thumb-x {
+  position: absolute; top: 2px; right: 2px;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: rgba(0, 0, 0, .55); color: #fff;
+  font-size: 12px; line-height: 18px; text-align: center;
+}
+.thumb-x:active { background: rgba(0, 0, 0, .75); }
+.add-photo {
+  width: 58px; height: 58px; border-radius: 10px;
+  background: var(--bg); color: var(--text-2);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  font-size: 22px; flex-shrink: 0;
+}
+.add-photo em { font-style: normal; font-size: 12px; margin-top: 1px; }
+.add-photo:active { background: #EAEAEA; }
+
+/* 拍照 / 相册选择弹层 */
+.photo-picker { max-height: 70%; }
+.photo-picker .pk-head { font-weight: 600; color: var(--text); }
+.ph-opt {
+  width: 100%; padding: 16px; font-size: 16px; color: var(--text);
+  border-bottom: 1px solid var(--line); text-align: center;
+}
+.ph-opt:active { background: var(--bg); }
+.ph-cancel {
+  width: 100%; padding: 16px; font-size: 16px; color: var(--text-2); font-weight: 600;
+}
+
+/* 大图预览 */
+.img-mask {
+  position: fixed; inset: 0; z-index: 300;
+  background: rgba(0, 0, 0, .9);
+  display: flex; align-items: center; justify-content: center;
+}
+.img-full { max-width: 94%; max-height: 86%; border-radius: 6px; }
+.img-close {
+  position: absolute; top: calc(14px + var(--safe-top)); right: 16px;
+  width: 36px; height: 36px; border-radius: 50%;
+  background: rgba(255, 255, 255, .15); color: #fff; font-size: 18px;
+}
+.img-nav {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 44px; height: 44px; border-radius: 50%;
+  background: rgba(255, 255, 255, .15); color: #fff; font-size: 26px;
+}
+.img-nav.prev { left: 12px; }
+.img-nav.next { right: 12px; }
 </style>

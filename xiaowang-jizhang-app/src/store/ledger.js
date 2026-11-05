@@ -355,7 +355,8 @@ export function openAdd(type = 'expense') {
     categoryId: getCategory(type, 'food').id,
     accountId: defaultAccountId(),
     note: '',
-    date: today()
+    date: today(),
+    images: []
   }
 }
 
@@ -372,7 +373,8 @@ export function openTransfer(fromId) {
     fromAccountId: from,
     toAccountId: suggestAccountId(from),
     note: '',
-    date: today()
+    date: today(),
+    images: []
   }
 }
 
@@ -388,7 +390,8 @@ export function openEdit(id) {
       fromAccountId: r.fromAccountId,
       toAccountId: r.toAccountId,
       note: r.note || '',
-      date: r.date
+      date: r.date,
+      images: r.images ? [...r.images] : []
     }
     return
   }
@@ -399,7 +402,8 @@ export function openEdit(id) {
     categoryId: r.categoryId,
     accountId: r.accountId,
     note: r.note || '',
-    date: r.date
+    date: r.date,
+    images: r.images ? [...r.images] : []
   }
 }
 
@@ -498,7 +502,8 @@ export function saveEditing() {
       fromAccountId: e.fromAccountId,
       toAccountId: e.toAccountId,
       note: e.note.trim(),
-      date: e.date
+      date: e.date,
+      images: e.images ? [...e.images] : []
     }
     if (e.id) {
       const r = state.records.find(x => x.id === e.id)
@@ -518,7 +523,8 @@ export function saveEditing() {
     categoryId: e.categoryId,
     accountId: e.accountId,
     note: e.note.trim(),
-    date: e.date
+    date: e.date,
+    images: e.images ? [...e.images] : []
   }
   if (e.id) {
     const r = state.records.find(x => x.id === e.id)

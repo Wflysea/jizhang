@@ -102,6 +102,18 @@ function onItemClick(r) {
 
 function closeSwipe() { swipedId.value = null }
 
+/* ===== 凭证图片查看 ===== */
+const imgView = ref(null)   // { urls: string[], idx: number } | null
+function viewImages(r) {
+  if (!r.images || !r.images.length) return
+  imgView.value = { urls: r.images, idx: 0 }
+}
+function imgStep(delta) {
+  if (!imgView.value) return
+  const n = imgView.value.urls.length
+  imgView.value.idx = (imgView.value.idx + delta + n) % n
+}
+
 /* ===== 操作按钮 ===== */
 const toastMsg = ref('')
 let toastTimer = null
@@ -195,6 +207,12 @@ function actDel(r) {
                   <span class="amt amount-font" :class="item.type">
                     {{ item.type === 'transfer' ? '' : (item.type === 'income' ? '+' : '-') }}{{ money(item.amount) }}
                   </span>
+                  <button
+                    v-if="item.images && item.images.length"
+                    class="img-badge"
+                    :title="`${item.images.length} 张凭证`"
+                    @click.stop="viewImages(item)"
+                  >📎{{ item.images.length > 1 ? item.images.length : '' }}</button>
                 </div>
 
                 <!-- 左滑露出的操作区 -->
@@ -224,6 +242,15 @@ function actDel(r) {
     <p class="tip">点击记录可编辑，左滑可复制 / 编辑 / 删除</p>
 
     <div v-if="toastMsg" class="toast">{{ toastMsg }}</div>
+
+    <!-- 凭证大图查看 -->
+    <div v-if="imgView" class="img-mask" @click="imgView = null">
+      <button class="img-close" @click.stop="imgView = null">✕</button>
+      <img class="img-full" :src="imgView.urls[imgView.idx]" alt="" @click.stop />
+      <button v-if="imgView.urls.length > 1" class="img-count">{{ imgView.idx + 1 }} / {{ imgView.urls.length }}</button>
+      <button v-if="imgView.urls.length > 1 && imgView.idx > 0" class="img-nav prev" @click.stop="imgStep(-1)">‹</button>
+      <button v-if="imgView.urls.length > 1 && imgView.idx < imgView.urls.length - 1" class="img-nav next" @click.stop="imgStep(1)">›</button>
+    </div>
   </div>
 </template>
 
@@ -328,6 +355,40 @@ function actDel(r) {
 .amt.income { color: var(--income); }
 .amt.transfer { color: var(--text-2); }
 .ico.tf { background: #E6F2FF; }
+
+/* 凭证图片标记 */
+.img-badge {
+  flex-shrink: 0;
+  font-size: 13px; color: var(--brand-dark);
+  background: var(--brand-light); border-radius: 8px;
+  padding: 2px 7px; margin-left: 2px;
+}
+.img-badge:active { background: #FCE3BE; }
+
+/* 凭证大图查看 */
+.img-mask {
+  position: fixed; inset: 0; z-index: 300;
+  background: rgba(0, 0, 0, .9);
+  display: flex; align-items: center; justify-content: center;
+}
+.img-full { max-width: 94%; max-height: 84%; border-radius: 6px; }
+.img-close {
+  position: absolute; top: calc(14px + var(--safe-top)); right: 16px;
+  width: 36px; height: 36px; border-radius: 50%;
+  background: rgba(255, 255, 255, .15); color: #fff; font-size: 18px;
+}
+.img-count {
+  position: absolute; bottom: calc(20px + var(--safe-bottom)); left: 50%; transform: translateX(-50%);
+  background: rgba(255, 255, 255, .15); color: #fff; font-size: 14px;
+  padding: 5px 14px; border-radius: 14px;
+}
+.img-nav {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 44px; height: 44px; border-radius: 50%;
+  background: rgba(255, 255, 255, .15); color: #fff; font-size: 26px;
+}
+.img-nav.prev { left: 12px; }
+.img-nav.next { right: 12px; }
 
 .acts {
   position: absolute; right: 0; top: 0; bottom: 0; z-index: 1;
