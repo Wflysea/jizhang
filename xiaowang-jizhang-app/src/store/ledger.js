@@ -555,6 +555,52 @@ export function clearAll() {
   state.records = []
 }
 
+/* ---------- 存储空间占用 ---------- */
+/** UTF-8 字节数（优先用 Blob，回退到字符串长度） */
+function rawBytes(obj) {
+  try {
+    const s = JSON.stringify(obj)
+    if (typeof Blob !== 'undefined') return new Blob([s]).size
+    return s.length
+  } catch (e) { return 0 }
+}
+
+/** 人类可读的字节数：B / KB / MB */
+export function formatBytes(bytes) {
+  if (!bytes) return '0 B'
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(2)} MB`
+}
+
+/**
+ * 应用本地数据占用（响应 state 变化）：
+ * 账目数据（含凭证图片）、账户数据、记账模板，以及合计与图片张数。
+ * 仅统计本应用写入 localStorage 的三类数据，不含系统/浏览器其他开销。
+ */
+export const storageUsage = computed(() => {
+  let imageCount = 0, imageBytes = 0
+  for (const r of state.records) {
+    if (Array.isArray(r.images)) {
+      for (const img of r.images) { imageCount++; imageBytes += rawBytes(img) }
+    }
+  }
+  const recBytes = rawBytes(state.records)
+  const accBytes = rawBytes(state.accounts)
+  const tplBytes = rawBytes(state.templates)
+  const items = [
+    { key: 'records', name: '账目数据', bytes: recBytes },
+    { key: 'accounts', name: '账户数据', bytes: accBytes },
+    { key: 'templates', name: '记账模板', bytes: tplBytes }
+  ]
+  return {
+    items,
+    total: recBytes + accBytes + tplBytes,
+    imageCount,
+    imageBytes
+  }
+})
+
 /* ---------- 具体账号（二级）增删改 ---------- */
 let accSeq = 0
 

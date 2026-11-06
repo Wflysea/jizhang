@@ -1,7 +1,8 @@
 <script setup>
 import { ref, computed } from 'vue'
 import {
-  state, clearAll, transferText, accountBalances
+  state, clearAll, transferText, accountBalances,
+  storageUsage, formatBytes
 } from '../store/ledger.js'
 import { getCategory } from '../data/categories.js'
 import {
@@ -121,6 +122,9 @@ const impSummary = computed(() => {
 function reset() {
   if (confirm('确定清空全部账目？此操作不可恢复。')) clearAll()
 }
+
+/* ---------- 存储空间 ---------- */
+const showStorage = ref(false)
 </script>
 
 <template>
@@ -174,6 +178,12 @@ function reset() {
 
     <div class="section-title">设置</div>
     <div class="card list">
+      <div class="li" @click="showStorage = true">
+        <span class="li-ico">💾</span>
+        <span class="li-txt">存储空间</span>
+        <span class="val">{{ formatBytes(storageUsage.total) }}</span>
+        <span class="arrow">›</span>
+      </div>
       <div class="li"><span class="li-ico">💰</span><span class="li-txt">预算管理</span><span class="arrow">›</span></div>
       <div class="li"><span class="li-ico">🏷️</span><span class="li-txt">分类管理</span><span class="arrow">›</span></div>
     </div>
@@ -218,6 +228,32 @@ function reset() {
         </div>
       </div>
     </div>
+
+    <!-- 存储空间明细弹层 -->
+    <div v-if="showStorage" class="mask" @click.self="showStorage = false">
+      <div class="sheet">
+        <div class="sh-head">
+          <span class="sh-title">存储空间</span>
+          <button class="sh-x" @click="showStorage = false">✕</button>
+        </div>
+
+        <div class="sh-body">
+          <div v-for="it in storageUsage.items" :key="it.key" class="sto-row">
+            <span class="sto-name">{{ it.name }}</span>
+            <span class="sto-val">{{ formatBytes(it.bytes) }}</span>
+          </div>
+          <p class="hint">
+            共 {{ state.records.length }} 笔账目 · {{ state.accounts.length }} 个账户 · {{ state.templates.length }} 个模板<br />
+            其中凭证图片 {{ storageUsage.imageCount }} 张，约 {{ formatBytes(storageUsage.imageBytes) }}<br />
+            数据保存在本机（localStorage），清空账目或更换设备前请先导出备份
+          </p>
+        </div>
+
+        <div class="sh-foot">
+          <button class="sbtn" @click="showStorage = false">知道了</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -253,6 +289,7 @@ function reset() {
   font-size: 13px; color: var(--text-3); margin-top: 3px;
 }
 .arrow { color: var(--text-3); font-size: 17px; flex-shrink: 0; }
+.li .val { font-size: 14px; color: var(--text-3); margin-right: 2px; flex-shrink: 0; font-variant-numeric: tabular-nums; }
 
 .tip {
   font-size: 13px; color: var(--text-3);
@@ -311,4 +348,16 @@ function reset() {
 }
 .sbtn.ok { background: var(--brand); color: #fff; font-weight: 600; }
 .sbtn.warn { background: #FFF1E8; color: #FF6B00; font-weight: 600; }
+
+/* ---------- 存储空间明细 ---------- */
+.sto-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 13px 0; border-bottom: 1px solid var(--line); font-size: 15px;
+}
+.sto-row:last-of-type { border-bottom: none; }
+.sto-name { color: var(--text-2); }
+.sto-val {
+  color: var(--text); font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
 </style>
