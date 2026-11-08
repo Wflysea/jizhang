@@ -150,10 +150,11 @@ function recordsIn(start, end) {
     .sort((a, b) => (a.date === b.date ? b.createdAt - a.createdAt : (a.date < b.date ? 1 : -1)))
 }
 
-/** 收支汇总（转账只是资金搬动，不计收入/支出，也不影响结余） */
+/** 收支汇总（转账只是资金搬动，不计收入/支出，也不影响结余；余额调整同属「账户修正」，不计入收支） */
 function summarize(list) {
   let income = 0, expense = 0, transfer = 0
   for (const r of list) {
+    if (r.adjust) continue                 // 余额调整不计入收支
     if (r.type === 'transfer') { transfer += r.amount; continue }
     if (r.type === 'income') income += r.amount
     else expense += r.amount
@@ -161,7 +162,7 @@ function summarize(list) {
   return { income, expense, balance: income - expense, transfer }
 }
 
-/** 按日分组，用于明细页瀑布列表 */
+/** 按日分组，用于明细页瀑布列表（余额调整仍列入明细，但不计入日收支小计） */
 function groupByDay(list) {
   const map = new Map()
   for (const r of list) {
@@ -171,6 +172,7 @@ function groupByDay(list) {
   return [...map.entries()].map(([date, items]) => {
     let income = 0, expense = 0
     for (const r of items) {
+      if (r.adjust) continue              // 余额调整不计入日收支
       if (r.type === 'transfer') continue
       if (r.type === 'income') income += r.amount
       else expense += r.amount
@@ -199,7 +201,7 @@ export function recordsInRange(range) {
   const { start, end } = rangeBounds(range)
   return recordsIn(start, end)
 }
-/** 指定范围的收支汇总（转账不计收支，但影响结余） */
+/** 指定范围的收支汇总（转账、余额调整均不计入收支） */
 export function summaryOfRange(range) {
   return summarize(recordsInRange(range))
 }
@@ -208,10 +210,11 @@ export function groupsOfRange(range) {
   return groupByDay(recordsInRange(range))
 }
 
-/** 分类聚合统计，用于饼图与排行榜 */
+/** 分类聚合统计，用于饼图与排行榜（不含余额调整、转账） */
 export function categoryStats(type) {
   const map = new Map()
   for (const r of monthRecords.value) {
+    if (r.adjust) continue                // 余额调整不计入分类统计
     if (r.type !== type) continue
     map.set(r.categoryId, (map.get(r.categoryId) || 0) + r.amount)
   }
@@ -224,7 +227,7 @@ export function categoryStats(type) {
     .sort((a, b) => b.amount - a.amount)
 }
 
-/** 近 6 个月收支趋势 */
+/** 近 6 个月收支趋势（不含余额调整、转账） */
 export const trend = computed(() => {
   const out = []
   for (let i = 5; i >= 0; i--) {
@@ -232,6 +235,7 @@ export const trend = computed(() => {
     let income = 0, expense = 0
     for (const r of state.records) {
       if (r.date.slice(0, 7) !== m) continue
+      if (r.adjust) continue              // 余额调整不计入趋势
       if (r.type === 'transfer') continue
       if (r.type === 'income') income += r.amount
       else expense += r.amount

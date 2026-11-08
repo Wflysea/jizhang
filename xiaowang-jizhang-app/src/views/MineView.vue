@@ -26,10 +26,11 @@ function detailRow(r) {
   }
 }
 
-/** 分类汇总（转账不计入收支） */
+/** 分类汇总（转账、余额调整不计入收支） */
 function byCategory() {
   const map = new Map()
   for (const r of state.records) {
+    if (r.adjust) continue
     if (r.type === 'transfer') continue
     const type = r.type === 'income' ? '收入' : '支出'
     const name = getCategory(r.type, r.categoryId).name
@@ -42,10 +43,11 @@ function byCategory() {
   return [...map.values()].sort((a, b) => b['金额'] - a['金额'])
 }
 
-/** 月度汇总 */
+/** 月度汇总（不含余额调整、转账） */
 function byMonth() {
   const map = new Map()
   for (const r of state.records) {
+    if (r.adjust) continue
     if (r.type === 'transfer') continue
     const m = r.date.slice(0, 7)
     if (!map.has(m)) map.set(m, { '月份': m, '收入': 0, '支出': 0, '结余': 0 })
