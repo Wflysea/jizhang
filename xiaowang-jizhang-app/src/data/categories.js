@@ -15,7 +15,9 @@ export const EXPENSE_CATEGORIES = [
   { id: 'pet',        name: '宠物', icon: '🐱', color: '#FFA940' },
   { id: 'other_e',    name: '其他', icon: '📦', color: '#BFBFBF' },
   // 手动调整账户余额时自动生成，不计入日常开销
-  { id: 'adjust_e',   name: '余额调整', icon: '⚖️', color: '#8C8C8C' }
+  { id: 'adjust_e',   name: '余额调整', icon: '⚖️', color: '#8C8C8C' },
+  // 年度结转时自动生成：上年余额作为新年期初，不计入日常开销
+  { id: 'carryover_e', name: '期初余额', icon: '📌', color: '#8C8C8C' }
 ]
 
 export const INCOME_CATEGORIES = [
@@ -28,7 +30,9 @@ export const INCOME_CATEGORIES = [
   { id: 'rent_i',     name: '租金', icon: '🏡', color: '#7C6BFF' },
   { id: 'other_i',    name: '其他', icon: '➕', color: '#BFBFBF' },
   // 手动调整账户余额时自动生成
-  { id: 'adjust_i',   name: '余额调整', icon: '⚖️', color: '#8C8C8C' }
+  { id: 'adjust_i',   name: '余额调整', icon: '⚖️', color: '#8C8C8C' },
+  // 年度结转时自动生成：上年余额作为新年期初
+  { id: 'carryover_i', name: '期初余额', icon: '📌', color: '#8C8C8C' }
 ]
 
 /* 转账：账户之间的资金互转，既不是收入也不是支出，不影响收支统计 */

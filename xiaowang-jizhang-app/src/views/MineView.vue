@@ -1,12 +1,13 @@
 <script setup>
 import { ref, computed } from 'vue'
 import {
-  state, clearAll, transferText, accountBalances,
-  storageUsage, formatBytes
+  state, clearAll, transferText, accountBalances, accountName,
+  storageUsage, formatBytes,
+  carryOver, undoCarryOver, carryOverInfo
 } from '../store/ledger.js'
 import { getCategory } from '../data/categories.js'
 import {
-  exportBackupXlsx, parseImportFile, applyImport, pickFile
+  exportBackup, parseImportFile, applyImport, pickFile
 } from '../utils/dataIO.js'
 import { exportToast } from '../utils/fileExport.js'
 import pkg from '../../package.json'
@@ -14,8 +15,18 @@ import pkg from '../../package.json'
 /* ---------- 导出 ---------- */
 const busy = ref('')
 
-/** 明细流水行（转账写成「转出 → 转入」） */
+/** 明细流水行（转账写成「转出 → 转入」；期初余额单独标注） */
 function detailRow(r) {
+  if (r.carryover) {
+    return {
+      '日期': r.date,
+      '类型': '期初',
+      '分类': '期初余额',
+      '金额': r.amount,
+      '账户': accountName(r.accountId),
+      '备注': r.note || ''
+    }
+  }
   return {
     '日期': r.date,
     '类型': r.type === 'transfer' ? '转账' : (r.type === 'income' ? '收入' : '支出'),
@@ -67,9 +78,12 @@ async function doExport(kind) {
   }
   busy.value = 'xlsx'
   try {
-    const r = exportBackupXlsx(accountBalances.value, { detailRow, byCategory, byMonth })
+    const r = exportBackup(accountBalances.value, { detailRow, byCategory, byMonth })
     const res = await r.file
-    alert(exportToast(res, r.name))
+    let msg = exportToast(res, r.name)
+    if (r.zipped) msg += `（含 ${r.images} 张凭证图片）`
+    else if (r.images) msg += `（含 ${r.images} 张凭证图片）`
+    alert(msg)
   } catch (e) {
     alert('导出失败：' + (e.message || e))
   } finally {
@@ -105,9 +119,10 @@ function confirmImport(mode) {
   const tplText = mode === 'replace'
     ? `、${r.addedTemplates} 个模板`
     : `、${r.addedTemplates} 个模板${r.skippedTemplates ? `（跳过 ${r.skippedTemplates} 个重复）` : ''}`
+  const imgText = (d.imageCount ? `、${d.imageCount} 张凭证图片` : '')
   alert(mode === 'replace'
-    ? `已覆盖导入：${r.addedAccounts} 个账号、${r.addedRecords} 笔流水${tplText}`
-    : `已合并导入：新增 ${r.addedAccounts} 个账号${r.skippedAccounts ? `（跳过 ${r.skippedAccounts} 个重复）` : ''}、${r.addedRecords} 笔流水${r.skippedRecords ? `（跳过 ${r.skippedRecords} 笔重复）` : ''}${tplText}` +
+    ? `已覆盖导入：${r.addedAccounts} 个账号、${r.addedRecords} 笔流水${tplText}${imgText}`
+    : `已合并导入：新增 ${r.addedAccounts} 个账号${r.skippedAccounts ? `（跳过 ${r.skippedAccounts} 个重复）` : ''}、${r.addedRecords} 笔流水${r.skippedRecords ? `（跳过 ${r.skippedRecords} 笔重复）` : ''}${tplText}${imgText}` +
       (r.createdAccounts ? `；流水引用了未知账户，已自动新建 ${r.createdAccounts} 个` : ''))
 }
 
@@ -118,6 +133,7 @@ const impSummary = computed(() => {
   if (d.accounts.length) parts.push(`${d.accounts.length} 个账号`)
   if (d.records.length) parts.push(`${d.records.length} 笔流水`)
   if (d.templates && d.templates.length) parts.push(`${d.templates.length} 个模板`)
+  if (d.imageCount) parts.push(`${d.imageCount} 张图片`)
   return parts.join('、')
 })
 
@@ -127,6 +143,44 @@ function reset() {
 
 /* ---------- 存储空间 ---------- */
 const showStorage = ref(false)
+
+/* ---------- 年度结转 ---------- */
+const showCarry = ref(false)
+const carryYear = ref(new Date().getFullYear() + 1)
+const carryInfo = computed(() => carryOverInfo())
+const carryBusy = ref(false)
+
+const thisYear = new Date().getFullYear()
+const carryAccounts = computed(() =>
+  accountBalances.value.map(a => ({ name: a.name, balance: a.balance }))
+)
+
+function openCarry() {
+  carryYear.value = (carryInfo.value ? carryInfo.value.year : thisYear) + 1
+  showCarry.value = true
+}
+function stepYear(delta) {
+  const y = carryYear.value + delta
+  if (y < thisYear) return
+  if (y > thisYear + 10) return
+  carryYear.value = y
+}
+function doCarry() {
+  carryBusy.value = true
+  try {
+    const res = carryOver(carryYear.value)
+    if (!res.ok) { alert(res.msg); return }
+    alert(`已结转至 ${res.year} 年：为 ${res.count} 个有余额的账户生成期初余额，往年流水已封存（仍保留可导出）。`)
+    showCarry.value = false
+  } finally {
+    carryBusy.value = false
+  }
+}
+function doUndo() {
+  if (!confirm('确定撤销结转？往年流水将恢复为未封存状态。')) return
+  undoCarryOver()
+  alert('已撤销结转')
+}
 </script>
 
 <template>
@@ -146,16 +200,16 @@ const showStorage = ref(false)
       <button class="li" :disabled="busy === 'xlsx'" @click="doExport()">
         <span class="li-ico">📊</span>
         <span class="li-txt">
-          导出 Excel
-          <em class="li-sub">明细流水 + 账户 + 模板 + 分类/月度汇总</em>
+          导出备份
+          <em class="li-sub">Excel（明细+账户+模板+汇总）+ 凭证图片（ZIP）</em>
         </span>
         <span class="arrow">›</span>
       </button>
       <button class="li" @click="doImport">
         <span class="li-ico">📥</span>
         <span class="li-txt">
-          导入 Excel
-          <em class="li-sub">自动识别账户表与流水表</em>
+          导入备份
+          <em class="li-sub">支持 .zip / .xlsx，自动识别账户表与流水表</em>
         </span>
         <span class="arrow">›</span>
       </button>
@@ -163,14 +217,21 @@ const showStorage = ref(false)
 
     <p class="tip">
       导出走系统分享面板（可保存到本地、发微信、传网盘）<br />
-      记账模板随 Excel 一起备份，换机或覆盖导入后仍可使用<br />
+      记账模板与「凭证图片」随备份一起导出（含图片时为 .zip 压缩包）<br />
       导入支持「合并」（保留现有数据，跳过重复）与「覆盖」（替换为文件内容）<br />
-      导出的 Excel 可直接改完再导回，无需另存备份文件<br />
-      记账时添加的「凭证图片」仅保存在本机，不随 Excel 导出，换机前请先备份
+      导出的文件可直接改完再导回，无需另存备份文件
     </p>
 
-    <div class="section-title">数据管理</div>
+    <div class="section-title">账本管理</div>
     <div class="card list">
+      <button class="li" @click="openCarry">
+        <span class="li-ico">📌</span>
+        <span class="li-txt">
+          年度结转
+          <em class="li-sub">{{ carryInfo ? `已结转至 ${carryInfo.year} 年（点击查看/撤销）` : '把上年余额结转为新年期初' }}</em>
+        </span>
+        <span class="arrow">›</span>
+      </button>
       <button class="li" @click="reset">
         <span class="li-ico">🗑️</span>
         <span class="li-txt danger">清空全部数据</span>
@@ -253,6 +314,66 @@ const showStorage = ref(false)
 
         <div class="sh-foot">
           <button class="sbtn" @click="showStorage = false">知道了</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 年度结转弹层 -->
+    <div v-if="showCarry" class="mask" @click.self="showCarry = false">
+      <div class="sheet">
+        <div class="sh-head">
+          <span class="sh-title">年度结转</span>
+          <button class="sh-x" @click="showCarry = false">✕</button>
+        </div>
+
+        <div class="sh-body">
+          <!-- 已结转：展示封账信息与撤销 -->
+          <template v-if="carryInfo">
+            <p class="imp-sum">
+              已结转至 <b>{{ carryInfo.year }} 年</b>（{{ carryInfo.cut }} 为期初日）<br />
+              已封存往年流水 <b>{{ carryInfo.closedCount }}</b> 笔，各账户期初余额如下
+            </p>
+            <div class="carry-opens">
+              <div v-for="o in carryInfo.openings" :key="o.id" class="sto-row">
+                <span class="sto-name">{{ accountName(o.accountId) }}</span>
+                <span class="sto-val">{{ o.type === 'income' ? '+' : '-' }}{{ o.amount.toFixed(2) }}</span>
+              </div>
+            </div>
+            <p class="hint">
+              结转后：往年流水不再计入本年收支与余额，但明细仍保留、可随时导出备份。<br />
+              新一年的报表从零累计，账户余额保持连续（= 期初余额 + 新一年收支）。
+            </p>
+          </template>
+
+          <!-- 未结转：选择目标年并预览各账户余额 -->
+          <template v-else>
+            <p class="imp-sum">把截至 {{ carryYear - 1 }} 年末的账户余额，结转为 <b>{{ carryYear }} 年</b> 1 月 1 日的「期初余额」。</p>
+            <div class="year-stepper">
+              <button @click="stepYear(-1)">‹</button>
+              <span class="year">{{ carryYear }} 年</span>
+              <button @click="stepYear(1)">›</button>
+            </div>
+            <p class="imp-sum" style="padding-top:4px">各账户当前余额（将作为期初余额写入）：</p>
+            <div class="carry-opens">
+              <div v-for="a in carryAccounts" :key="a.name" class="sto-row">
+                <span class="sto-name">{{ a.name }}</span>
+                <span class="sto-val" :class="a.balance < 0 ? 'neg' : ''">{{ a.balance.toFixed(2) }}</span>
+              </div>
+              <div v-if="!carryAccounts.length" class="hint">暂无账户</div>
+            </div>
+            <p class="hint">
+              结转会为余额非零的账户各写一笔「期初余额」，并把该日之前的往年流水封存。<br />
+              若余额为零的账户不会生成期初记录。
+            </p>
+          </template>
+        </div>
+
+        <div class="sh-foot">
+          <button v-if="carryInfo" class="sbtn warn" @click="doUndo">撤销结转</button>
+          <template v-else>
+            <button class="sbtn" @click="showCarry = false">取消</button>
+            <button class="sbtn ok" :disabled="carryBusy" @click="doCarry">结转至 {{ carryYear }} 年</button>
+          </template>
         </div>
       </div>
     </div>
@@ -362,4 +483,17 @@ const showStorage = ref(false)
   color: var(--text); font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
+.sto-val.neg { color: var(--expense); }
+
+/* ---------- 年度结转 ---------- */
+.carry-opens { margin: 4px 0 2px; }
+.year-stepper {
+  display: flex; align-items: center; justify-content: center; gap: 20px;
+  padding: 10px 0 6px;
+}
+.year-stepper button {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: var(--bg); color: var(--text-2); font-size: 22px;
+}
+.year-stepper .year { font-size: 18px; font-weight: 600; min-width: 72px; text-align: center; }
 </style>

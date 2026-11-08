@@ -11,6 +11,10 @@ import * as XLSX from 'xlsx'
 import { state, accountName } from '../store/ledger.js'
 import { ACCOUNT_GROUPS, getCategories, getCategory, normalizeGroupId } from '../data/categories.js'
 import { exportFile } from './fileExport.js'
+import {
+  zipStore, unzip, isZip, base64ToBytes, bytesToBase64,
+  bytesToDataUrl, dataUrlToBytes, extOfMime
+} from './zip.js'
 
 function stamp() {
   const d = new Date()
@@ -60,16 +64,41 @@ export function templateRows() {
   }))
 }
 
-/** 导出 Excel：明细流水 + 账户 + 分类汇总 + 月度汇总 + 模板 */
-export function exportBackupXlsx(balances, summaryBuilders) {
+/** 导出备份：明细流水 + 账户 + 分类汇总 + 月度汇总 + 模板（+ 凭证图片）
+ *  - 含凭证图片时打包为 .zip（内含 data.xlsx 与 images/ 目录）
+ *  - 不含图片时直接导出 .xlsx，保持向后兼容
+ */
+export function exportBackup(balances, summaryBuilders) {
   const wb = XLSX.utils.book_new()
+
+  // 先收集凭证图片并生成「记录ID → 图片相对路径」映射
+  const imageRefs = new Map()
+  const imageFiles = []
+  for (const r of state.records) {
+    if (!Array.isArray(r.images) || !r.images.length) continue
+    const refs = []
+    r.images.forEach((img, k) => {
+      const parsed = dataUrlToBytes(img)
+      if (!parsed) return
+      const safeId = String(r.id).replace(/[^A-Za-z0-9_.-]/g, '_')
+      const fname = `images/${safeId}_${k}.${extOfMime(parsed.mime)}`
+      imageFiles.push({ name: fname, bytes: parsed.bytes })
+      refs.push(fname)
+    })
+    if (refs.length) imageRefs.set(r.id, refs)
+  }
 
   const detail = state.records
     .slice()
     .sort((a, b) => (a.date < b.date ? 1 : -1))
-    .map(r => ({ ...summaryBuilders.detailRow(r), '记录ID': r.id }))
+    .map(r => {
+      const row = { ...summaryBuilders.detailRow(r), '记录ID': r.id }
+      row['结转'] = r.carryover ? '是' : ''           // 期初余额标记，便于回导还原
+      row['凭证图片'] = (imageRefs.get(r.id) || []).join('；')
+      return row
+    })
   const wsDetail = XLSX.utils.json_to_sheet(detail)
-  wsDetail['!cols'] = [{ wch: 12 }, { wch: 6 }, { wch: 10 }, { wch: 10 }, { wch: 22 }, { wch: 24 }, { wch: 20 }]
+  wsDetail['!cols'] = [{ wch: 12 }, { wch: 6 }, { wch: 10 }, { wch: 10 }, { wch: 22 }, { wch: 24 }, { wch: 20 }, { wch: 6 }, { wch: 30 }]
   XLSX.utils.book_append_sheet(wb, wsDetail, '明细流水')
 
   const wsAcc = XLSX.utils.json_to_sheet(accountRows(balances))
@@ -91,14 +120,29 @@ export function exportBackupXlsx(balances, summaryBuilders) {
     XLSX.utils.book_append_sheet(wb, wsTpl, '模板')
   }
 
-  const name = `小王记账_导出_${stamp()}.xlsx`
-  const b64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' })
+  const xlsxB64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' })
+
+  let file, name, zipped = false
+  if (imageFiles.length) {
+    // 打包成 ZIP：data.xlsx + images/*
+    const zipBytes = zipStore([
+      { name: 'data.xlsx', bytes: base64ToBytes(xlsxB64) },
+      ...imageFiles
+    ])
+    name = `小王记账_导出_${stamp()}.zip`
+    file = exportFile(name, bytesToBase64(zipBytes), 'application/zip')
+    zipped = true
+  } else {
+    name = `小王记账_导出_${stamp()}.xlsx`
+    file = exportFile(name, xlsxB64, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+  }
+
   return {
-    file: exportFile(name, b64, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
-    name,
+    file, name, zipped,
     accounts: state.accounts.length,
     records: state.records.length,
-    templates: tpl.length
+    templates: tpl.length,
+    images: imageFiles.length
   }
 }
 
@@ -194,13 +238,19 @@ function normRecord(row) {
   const type = toType(row.type ?? row['类型'])
   if (!type) return null
 
+  // 期初余额标记（结转导出时写入「结转」列）
+  const carryover = /^(是|true|1|yes|y)$/i.test(String(row.carryover ?? row['结转'] ?? '').trim())
+
   const o = {
     id: String(row.id ?? row['记录ID'] ?? '').trim(),
     type,
     amount: money2(amount),
     date,
-    note: String(row.note ?? row['备注'] ?? '').trim().slice(0, 30)
+    note: String(row.note ?? row['备注'] ?? '').trim().slice(0, 30),
+    carryover
   }
+  // 期初余额：强制使用专用分类，避免按名称映射到「其他」
+  if (carryover) o.categoryId = type === 'income' ? 'carryover_i' : 'carryover_e'
 
   // 账户引用可能来自两种写法：账户名（自己导出的 Excel）或账户 id（账号ID 列）
   const accRaw = String(row.account ?? row['账户'] ?? row.accountName ?? '').trim()
@@ -272,8 +322,8 @@ function normTemplate(row) {
  */
 export function parseImportFile(file) {
   const fname = (file.name || '').toLowerCase()
-  if (!/\.(xlsx|xls)$/.test(fname)) {
-    return Promise.reject(new Error('只支持导入 Excel 文件（.xlsx / .xls），请先用「导出 Excel」生成'))
+  if (!/\.(xlsx|xls|zip)$/.test(fname)) {
+    return Promise.reject(new Error('只支持导入 Excel（.xlsx / .xls）或备份压缩包（.zip），请先用「导出备份」生成'))
   }
 
   return new Promise((resolve, reject) => {
@@ -282,7 +332,37 @@ export function parseImportFile(file) {
 
     reader.onload = () => {
       try {
-        const wb = XLSX.read(reader.result, { type: 'array' })
+        const buf = new Uint8Array(reader.result)
+        let wb
+        let imageMap = {}   // 记录ID → [dataURL, ...]
+
+        if (isZip(buf)) {
+          // 压缩包备份：内含 data.xlsx 与 images/*
+          const entries = unzip(buf)
+          const xlsxName = Object.keys(entries).find(n => /^data\.xlsx$/i.test(n)) ||
+            Object.keys(entries).find(n => /\.xlsx$/i.test(n))
+          if (!xlsxName || !entries[xlsxName]) {
+            throw new Error('压缩包内未找到 Excel 文件（data.xlsx）')
+          }
+          wb = XLSX.read(entries[xlsxName], { type: 'array' })
+
+          const IMAGE_RE = /^images\/(.+)_(\d+)\.(jpg|jpeg|png|webp|gif)$/i
+          for (const [name, data] of Object.entries(entries)) {
+            if (!data) continue
+            const m = name.match(IMAGE_RE)
+            if (!m) continue
+            const recId = m[1]
+            const idx = Number(m[2])
+            const mime = /\.png$/i.test(name) ? 'image/png'
+              : (/\.webp$/i.test(name) ? 'image/webp'
+                : (/\.gif$/i.test(name) ? 'image/gif' : 'image/jpeg'))
+            if (!imageMap[recId]) imageMap[recId] = []
+            imageMap[recId][idx] = bytesToDataUrl(mime, data)
+          }
+        } else {
+          wb = XLSX.read(reader.result, { type: 'array' })
+        }
+
         const accounts = []
         const records = []
         const templates = []
@@ -313,14 +393,17 @@ export function parseImportFile(file) {
         if (!accounts.length && !records.length && !templates.length) {
           throw new Error('表格中没有可导入的数据（需含「账户」「明细流水」或「模板」工作表）')
         }
+        const imageCount = Object.values(imageMap).reduce((s, arr) => s + arr.filter(Boolean).length, 0)
         resolve({
           kind: templates.length && !accounts.length && !records.length
             ? 'templates'
             : (accounts.length && records.length ? 'backup' : (accounts.length ? 'accounts' : 'records')),
-          source: 'Excel',
+          source: isZip(buf) ? 'ZIP 备份' : 'Excel',
           accounts,
           records,
-          templates
+          templates,
+          images: imageMap,
+          imageCount
         })
       } catch (e) {
         reject(e)
@@ -423,6 +506,7 @@ export function applyImport(data, mode = 'merge') {
   const rawAccounts = (data.accounts || []).map(normAccount).filter(Boolean)
   const rawRecords = (data.records || []).map(normRecord).filter(Boolean)
   const rawTemplates = (data.templates || []).map(normTemplate).filter(Boolean)
+  const imageMap = data.images || {}
   const result = {
     addedAccounts: 0, skippedAccounts: 0,
     addedRecords: 0, skippedRecords: 0, createdAccounts: 0,
@@ -449,7 +533,8 @@ export function applyImport(data, mode = 'merge') {
         amount: r.amount,
         date: r.date,
         note: r.note,
-        createdAt: Date.now()
+        createdAt: Date.now(),
+        carryover: r.carryover
       }
       if (r.type === 'transfer') {
         o.fromAccountId = ensure(r.fromName, r.fromIdRef)
@@ -458,6 +543,7 @@ export function applyImport(data, mode = 'merge') {
         o.categoryId = r.categoryId
         o.accountId = ensure(r.accountName, r.accountIdRef)
       }
+      if (imageMap[o.id]) o.images = imageMap[o.id].filter(Boolean).slice()
       return o
     })
     result.addedRecords = state.records.length
@@ -489,7 +575,8 @@ export function applyImport(data, mode = 'merge') {
       amount: r.amount,
       date: r.date,
       note: r.note,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      carryover: r.carryover
     }
     if (r.type === 'transfer') {
       o.fromAccountId = ensure(r.fromName, r.fromIdRef)
@@ -498,6 +585,7 @@ export function applyImport(data, mode = 'merge') {
       o.categoryId = r.categoryId
       o.accountId = ensure(r.accountName, r.accountIdRef)
     }
+    if (imageMap[o.id]) o.images = imageMap[o.id].filter(Boolean).slice()
     state.records.unshift(o)
     recIds.add(o.id)
     result.addedRecords++
@@ -512,7 +600,7 @@ export function pickFile() {
   return new Promise(resolve => {
     const input = document.createElement('input')
     input.type = 'file'
-    input.accept = '.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel'
+    input.accept = '.zip,.xlsx,.xls,application/zip,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel'
     input.style.display = 'none'
     document.body.appendChild(input)
     input.onchange = () => { resolve(input.files[0] || null); input.remove() }

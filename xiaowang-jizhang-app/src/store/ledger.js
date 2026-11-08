@@ -142,11 +142,41 @@ watch(
   { deep: true }
 )
 
+/* ---------- 年度结转（封账） ----------
+ * 封账逻辑：把某一年的账户余额作为「期初余额」写一笔（日期 = 该年 1 月 1 日），
+ * 并把该日之前的所有真实流水标记为「已封存」。封账年份由期初余额记录的最大年份派生，
+ * 因此无需单独存储标记，导入导出也天然保持一致。
+ *
+ * 关键点：已封存的往年流水既不计入余额、也不计入收支统计，避免与期初余额重复计算；
+ * 期初余额记录自身（carryover）参与余额、但不计入收支，如同余额调整。
+ */
+/** 当前封账年份：期初余额记录中的最大年份；无则 0（未封账） */
+export function carryOverYear() {
+  let y = 0
+  for (const r of state.records) {
+    if (r.carryover && r.date) {
+      const yy = Number(String(r.date).slice(0, 4))
+      if (yy > y) y = yy
+    }
+  }
+  return y
+}
+/** 封账日（含）：早于该日的真实流水视为已封存；空串表示未封账 */
+function closedCut() {
+  const y = carryOverYear()
+  return y ? `${y}-01-01` : ''
+}
+/** 该条记录是否已封存（期初余额记录自身不算封存） */
+function isClosed(r, cut) {
+  return !!cut && !r.carryover && r.date < cut
+}
+
 /* ---------- 派生数据 ---------- */
-/** 取 [start, end] 区间内的流水，按日期倒序、同日按录入时间倒序 */
+/** 取 [start, end] 区间内的流水（排除已封存），按日期倒序、同日按录入时间倒序 */
 function recordsIn(start, end) {
+  const cut = closedCut()
   return state.records
-    .filter(r => r.date >= start && r.date <= end)
+    .filter(r => r.date >= start && r.date <= end && !isClosed(r, cut))
     .sort((a, b) => (a.date === b.date ? b.createdAt - a.createdAt : (a.date < b.date ? 1 : -1)))
 }
 
@@ -154,7 +184,7 @@ function recordsIn(start, end) {
 function summarize(list) {
   let income = 0, expense = 0, transfer = 0
   for (const r of list) {
-    if (r.adjust) continue                 // 余额调整不计入收支
+    if (r.adjust || r.carryover) continue   // 余额调整 / 期初余额不计入收支
     if (r.type === 'transfer') { transfer += r.amount; continue }
     if (r.type === 'income') income += r.amount
     else expense += r.amount
@@ -172,7 +202,7 @@ function groupByDay(list) {
   return [...map.entries()].map(([date, items]) => {
     let income = 0, expense = 0
     for (const r of items) {
-      if (r.adjust) continue              // 余额调整不计入日收支
+      if (r.adjust || r.carryover) continue // 余额调整 / 期初余额不计入日收支
       if (r.type === 'transfer') continue
       if (r.type === 'income') income += r.amount
       else expense += r.amount
@@ -214,7 +244,7 @@ export function groupsOfRange(range) {
 export function categoryStats(type) {
   const map = new Map()
   for (const r of monthRecords.value) {
-    if (r.adjust) continue                // 余额调整不计入分类统计
+    if (r.adjust || r.carryover) continue  // 余额调整 / 期初余额不计入分类统计
     if (r.type !== type) continue
     map.set(r.categoryId, (map.get(r.categoryId) || 0) + r.amount)
   }
@@ -230,12 +260,14 @@ export function categoryStats(type) {
 /** 近 6 个月收支趋势（不含余额调整、转账） */
 export const trend = computed(() => {
   const out = []
+  const cut = closedCut()
   for (let i = 5; i >= 0; i--) {
     const m = shiftMonth(state.month, -i)
     let income = 0, expense = 0
     for (const r of state.records) {
       if (r.date.slice(0, 7) !== m) continue
-      if (r.adjust) continue              // 余额调整不计入趋势
+      if (isClosed(r, cut)) continue       // 已封存往年流水不计入趋势
+      if (r.adjust || r.carryover) continue // 余额调整 / 期初余额不计入趋势
       if (r.type === 'transfer') continue
       if (r.type === 'income') income += r.amount
       else expense += r.amount
@@ -246,10 +278,12 @@ export const trend = computed(() => {
 })
 
 /** 二级：每个具体账号的余额与流水笔数（含转账转入 / 转出） */
-export const accountBalances = computed(() =>
-  state.accounts.map(a => {
+export const accountBalances = computed(() => {
+  const cut = closedCut()
+  return state.accounts.map(a => {
     let balance = 0, count = 0, transferIn = 0, transferOut = 0
     for (const r of state.records) {
+      if (isClosed(r, cut)) continue        // 已封存往年流水不计入余额
       if (r.type === 'transfer') {
         if (r.fromAccountId === a.id) { balance -= r.amount; transferOut += r.amount; count++ }
         else if (r.toAccountId === a.id) { balance += r.amount; transferIn += r.amount; count++ }
@@ -261,7 +295,7 @@ export const accountBalances = computed(() =>
     }
     return { ...a, balance: Math.round(balance * 100) / 100, count, transferIn, transferOut }
   })
-)
+})
 
 /** 一级：按账户类型分组，组内包含该类型下的具体账号 */
 export const accountGroups = computed(() =>
@@ -306,10 +340,12 @@ export function removeRecord(id) {
   if (i > -1) state.records.splice(i, 1)
 }
 
-/** 单个账号当前余额（收入 - 支出 + 转入 - 转出） */
+/** 单个账号当前余额（收入 - 支出 + 转入 - 转出，排除已封存流水） */
 export function accountBalanceOf(id) {
+  const cut = closedCut()
   let balance = 0
   for (const r of state.records) {
+    if (isClosed(r, cut)) continue
     if (r.type === 'transfer') {
       if (r.fromAccountId === id) balance -= r.amount
       else if (r.toAccountId === id) balance += r.amount
@@ -348,6 +384,90 @@ export function adjustBalance(accountId, target, date, note) {
   })
   state.month = (date || today()).slice(0, 7)
   return { id, delta, from, to }
+}
+
+/**
+ * 某账户在指定日期之前的「未封存」余额（用于结转）。
+ * 仅统计早于 before 且未被封存的真实流水（含余额调整、转账），
+ * 期初余额记录（carryover）本身参与计算，因为它代表更早的封账余额。
+ */
+function balanceBefore(accountId, before) {
+  const cut = closedCut()
+  let bal = 0
+  for (const r of state.records) {
+    if (r.date >= before) continue
+    if (isClosed(r, cut)) continue        // 已封存往年流水已在更早的期初余额中体现
+    if (r.type === 'transfer') {
+      if (r.fromAccountId === accountId) bal -= r.amount
+      else if (r.toAccountId === accountId) bal += r.amount
+      continue
+    }
+    if (r.accountId !== accountId) continue
+    bal += r.type === 'income' ? r.amount : -r.amount
+  }
+  return Math.round(bal * 100) / 100
+}
+
+/**
+ * 年度结转：把截至 (year-1) 年末的账户余额结转为 year 年 1 月 1 日的「期初余额」，
+ * 并封存该日之前的所有真实流水。
+ * @param {number} year 目标新年（期初余额写入该年 1 月 1 日）
+ * @returns {{ok:boolean, msg?:string, year?:number, count?:number}}
+ */
+export function carryOver(year) {
+  const y = Number(year)
+  if (!Number.isInteger(y) || y < 2000 || y > 2100) {
+    return { ok: false, msg: '年份无效' }
+  }
+  const existing = carryOverYear()
+  if (existing) {
+    if (existing === y) return { ok: false, msg: `已结转至 ${y} 年，无需重复操作` }
+    if (existing > y) return { ok: false, msg: `已结转至 ${existing} 年，请先撤销后再结转更早的年份` }
+  }
+  const before = `${y}-01-01`
+
+  // 移除旧期初余额（单一封账边界，重新生成）
+  state.records = state.records.filter(r => !r.carryover)
+
+  const created = []
+  for (const a of state.accounts) {
+    const bal = balanceBefore(a.id, before)
+    if (Math.abs(bal) < 0.005) continue
+    const type = bal >= 0 ? 'income' : 'expense'
+    addRecord({
+      type,
+      amount: Math.abs(bal),
+      categoryId: type === 'income' ? 'carryover_i' : 'carryover_e',
+      accountId: a.id,
+      note: `期初余额结转（${y}年）`,
+      date: before,
+      carryover: true,
+      images: []
+    })
+    created.push(a.id)
+  }
+  // 封账日由期初余额记录年份自动派生，无需单独标记
+  return { ok: true, year: y, count: created.length }
+}
+
+/** 撤销结转：删除所有期初余额记录，往年流水自动恢复为未封存 */
+export function undoCarryOver() {
+  state.records = state.records.filter(r => !r.carryover)
+  return true
+}
+
+/** 结转信息：是否已结转、封账年份、封存笔数、各账户期初余额 */
+export function carryOverInfo() {
+  const y = carryOverYear()
+  if (!y) return null
+  const cut = `${y}-01-01`
+  let closedCount = 0
+  const openings = []
+  for (const r of state.records) {
+    if (r.carryover) openings.push(r)
+    else if (r.date < cut) closedCount++
+  }
+  return { year: y, cut, closedCount, openings }
 }
 
 export function openAdd(type = 'expense') {
