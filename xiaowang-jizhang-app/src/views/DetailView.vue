@@ -3,7 +3,7 @@ import { computed, reactive, ref } from 'vue'
 import {
   state, RANGES, rangeBounds, shiftMonth, nowMonth,
   summaryOfRange, groupsOfRange, openEdit,
-  removeRecord, duplicateRecord, accountName, transferText
+  removeRecord, duplicateRecord, accountName, transferText, timeOf
 } from '../store/ledger.js'
 import { getCategory } from '../data/categories.js'
 
@@ -204,6 +204,7 @@ function actDel(r) {
                     <div class="name">{{ titleOf(item) }}</div>
                     <div class="sub">{{ subOf(item) }}</div>
                   </div>
+                  <span class="time amount-font">{{ timeOf(item) }}</span>
                   <span class="amt amount-font" :class="item.type">
                     {{ item.type === 'transfer' ? '' : (item.type === 'income' ? '+' : '-') }}{{ money(item.amount) }}
                   </span>
@@ -350,6 +351,11 @@ function actDel(r) {
 .mid { flex: 1; min-width: 0; }
 .name { font-size: 15px; }
 .sub { font-size: 13px; color: var(--text-3); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.time {
+  flex-shrink: 0; font-size: 13px; color: var(--text-3);
+  margin-right: 8px; font-variant-numeric: tabular-nums;
+  align-self: center;
+}
 .amt { font-size: 16px; font-weight: 600; }
 .amt.expense { color: var(--expense); }
 .amt.income { color: var(--income); }

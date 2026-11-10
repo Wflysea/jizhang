@@ -24,6 +24,31 @@ export function fmtMonth(d) {
 export function today() { return fmtDate(new Date()) }
 export function nowMonth() { return fmtMonth(new Date()) }
 
+/** 当前时刻，格式 HH:MM:SS（精确到秒，用于记账时间） */
+export function nowTime() {
+  const d = new Date()
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
+
+/**
+ * 取一笔记录的展示时间（HH:MM:SS）。
+ * 优先用记录的 time 字段；旧数据无该字段时，由 createdAt 回推到秒，保证排序与展示一致。
+ */
+export function timeOf(r) {
+  if (r && r.time) return r.time
+  const t = r && r.createdAt ? new Date(r.createdAt) : new Date()
+  return `${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(t.getSeconds())}`
+}
+
+/** 记录的可比较时间戳（含日期 + 时分秒），用于同日内的精确排序 */
+function tsOf(r) {
+  if (r.time) {
+    const t = Date.parse(`${r.date}T${r.time}`)
+    if (!isNaN(t)) return t
+  }
+  return r.createdAt || 0
+}
+
 export function shiftMonth(month, delta) {
   const [y, m] = month.split('-').map(Number)
   const d = new Date(y, m - 1 + delta, 1)
@@ -172,12 +197,12 @@ function isClosed(r, cut) {
 }
 
 /* ---------- 派生数据 ---------- */
-/** 取 [start, end] 区间内的流水（排除已封存），按日期倒序、同日按录入时间倒序 */
+/** 取 [start, end] 区间内的流水（排除已封存），按日期倒序、同日按时间（精确到秒）倒序 */
 function recordsIn(start, end) {
   const cut = closedCut()
   return state.records
     .filter(r => r.date >= start && r.date <= end && !isClosed(r, cut))
-    .sort((a, b) => (a.date === b.date ? b.createdAt - a.createdAt : (a.date < b.date ? 1 : -1)))
+    .sort((a, b) => (a.date === b.date ? tsOf(b) - tsOf(a) : (a.date < b.date ? 1 : -1)))
 }
 
 /** 收支汇总（转账只是资金搬动，不计收入/支出，也不影响结余；余额调整同属「账户修正」，不计入收支） */
@@ -480,6 +505,7 @@ export function openAdd(type = 'expense') {
     accountId: defaultAccountId(),
     note: '',
     date: today(),
+    time: nowTime(),
     images: []
   }
 }
@@ -498,6 +524,7 @@ export function openTransfer(fromId) {
     toAccountId: suggestAccountId(from),
     note: '',
     date: today(),
+    time: nowTime(),
     images: []
   }
 }
@@ -515,6 +542,7 @@ export function openEdit(id) {
       toAccountId: r.toAccountId,
       note: r.note || '',
       date: r.date,
+      time: timeOf(r),
       images: r.images ? [...r.images] : []
     }
     return
@@ -527,16 +555,17 @@ export function openEdit(id) {
     accountId: r.accountId,
     note: r.note || '',
     date: r.date,
+    time: timeOf(r),
     images: r.images ? [...r.images] : []
   }
 }
 
-/** 复制一条记录：金额/分类/账户/备注不变，日期取今天 */
+/** 复制一条记录：金额/分类/账户/备注不变，日期取今天，时间取当前 */
 export function duplicateRecord(id) {
   const r = state.records.find(x => x.id === id)
   if (!r) return null
   const newId = `${Date.now()}_${seq++}_copy`
-  state.records.unshift({ ...r, id: newId, createdAt: Date.now(), date: today() })
+  state.records.unshift({ ...r, id: newId, createdAt: Date.now(), date: today(), time: nowTime() })
   state.month = today().slice(0, 7)
   return newId
 }
@@ -627,6 +656,7 @@ export function saveEditing() {
       toAccountId: e.toAccountId,
       note: e.note.trim(),
       date: e.date,
+      time: e.time || nowTime(),
       images: e.images ? [...e.images] : []
     }
     if (e.id) {
@@ -648,6 +678,7 @@ export function saveEditing() {
     accountId: e.accountId,
     note: e.note.trim(),
     date: e.date,
+    time: e.time || nowTime(),
     images: e.images ? [...e.images] : []
   }
   if (e.id) {

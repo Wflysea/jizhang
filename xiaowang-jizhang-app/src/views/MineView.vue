@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import {
-  state, clearAll, transferText, accountBalances, accountName,
+  state, clearAll, transferText, accountBalances, accountName, timeOf,
   storageUsage, formatBytes,
   carryOver, undoCarryOver, carryOverInfo
 } from '../store/ledger.js'
@@ -20,6 +20,7 @@ function detailRow(r) {
   if (r.carryover) {
     return {
       '日期': r.date,
+      '时间': timeOf(r),
       '类型': '期初',
       '分类': '期初余额',
       '金额': r.amount,
@@ -29,6 +30,7 @@ function detailRow(r) {
   }
   return {
     '日期': r.date,
+    '时间': timeOf(r),
     '类型': r.type === 'transfer' ? '转账' : (r.type === 'income' ? '收入' : '支出'),
     '分类': r.type === 'transfer' ? '转账' : getCategory(r.type, r.categoryId).name,
     '金额': r.amount,

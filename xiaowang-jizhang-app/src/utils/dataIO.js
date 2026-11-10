@@ -98,7 +98,7 @@ export function exportBackup(balances, summaryBuilders) {
       return row
     })
   const wsDetail = XLSX.utils.json_to_sheet(detail)
-  wsDetail['!cols'] = [{ wch: 12 }, { wch: 6 }, { wch: 10 }, { wch: 10 }, { wch: 22 }, { wch: 24 }, { wch: 20 }, { wch: 6 }, { wch: 30 }]
+  wsDetail['!cols'] = [{ wch: 12 }, { wch: 9 }, { wch: 6 }, { wch: 10 }, { wch: 10 }, { wch: 22 }, { wch: 24 }, { wch: 20 }, { wch: 6 }, { wch: 30 }]
   XLSX.utils.book_append_sheet(wb, wsDetail, '明细流水')
 
   const wsAcc = XLSX.utils.json_to_sheet(accountRows(balances))
@@ -241,12 +241,19 @@ function normRecord(row) {
   // 期初余额标记（结转导出时写入「结转」列）
   const carryover = /^(是|true|1|yes|y)$/i.test(String(row.carryover ?? row['结转'] ?? '').trim())
 
+  // 记账时间（精确到秒）：优先「时间」列，兼容英文 time；非法则忽略，回退到导入时间
+  const rawTime = String(row.time ?? row['时间'] ?? '').trim()
+  const time = /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/.test(rawTime)
+    ? rawTime.length === 5 ? `${rawTime}:00` : rawTime
+    : ''
+
   const o = {
     id: String(row.id ?? row['记录ID'] ?? '').trim(),
     type,
     amount: money2(amount),
     date,
     note: String(row.note ?? row['备注'] ?? '').trim().slice(0, 30),
+    time,
     carryover
   }
   // 期初余额：强制使用专用分类，避免按名称映射到「其他」
@@ -532,6 +539,7 @@ export function applyImport(data, mode = 'merge') {
         type: r.type,
         amount: r.amount,
         date: r.date,
+        time: r.time,
         note: r.note,
         createdAt: Date.now(),
         carryover: r.carryover
@@ -574,6 +582,7 @@ export function applyImport(data, mode = 'merge') {
       type: r.type,
       amount: r.amount,
       date: r.date,
+      time: r.time,
       note: r.note,
       createdAt: Date.now(),
       carryover: r.carryover

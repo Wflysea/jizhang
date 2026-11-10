@@ -1,8 +1,8 @@
 <script setup>
-import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue'
+import { computed, ref, reactive, watch, nextTick, onBeforeUnmount } from 'vue'
 import {
   state, saveEditing, closeAdd, removeEditing, accountGroups, addAccount,
-  suggestAccountId, accountBalances, money, accountName,
+  suggestAccountId, accountBalances, money, accountName, nowTime,
   saveAsTemplate, applyTemplate, removeTemplate
 } from '../store/ledger.js'
 import { getCategories, getCategory } from '../data/categories.js'
@@ -48,6 +48,7 @@ onBeforeUnmount(registerBack(() => {
   if (showPhotoPicker.value) { showPhotoPicker.value = false; return true }
   if (showTemplates.value) { closeTemplates(); return true }
   if (showPicker.value) { showPicker.value = false; return true }
+  if (showTime.value) { showTime.value = false; return true }
   closeAdd()
   return true
 }))
@@ -189,6 +190,46 @@ function removeImage(i) {
   if (e.value.images) e.value.images.splice(i, 1)
 }
 function previewImage(i) { previewIdx.value = i }
+
+/* ===== 记账时间：精确到秒（时 / 分 / 秒 三列滚轮选择） ===== */
+const showTime = ref(false)
+const tmpTime = reactive({ h: '00', m: '00', s: '00' })
+const hourCol = ref(null)
+const minCol = ref(null)
+const secCol = ref(null)
+const TIME_ITEM_H = 40          // 每个选项高度（与 CSS 一致）
+
+const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'))
+const MINS = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'))
+const SECS = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'))
+
+function openTime() {
+  const parts = (e.value.time || nowTime()).split(':')
+  tmpTime.h = parts[0] || '00'
+  tmpTime.m = parts[1] || '00'
+  tmpTime.s = parts[2] || '00'
+  showTime.value = true
+  nextTick(scrollTimeToSel)
+}
+function scrollTimeToSel() {
+  if (hourCol.value) hourCol.value.scrollTop = HOURS.indexOf(tmpTime.h) * TIME_ITEM_H
+  if (minCol.value) minCol.value.scrollTop = MINS.indexOf(tmpTime.m) * TIME_ITEM_H
+  if (secCol.value) secCol.value.scrollTop = SECS.indexOf(tmpTime.s) * TIME_ITEM_H
+}
+/** 滚动时按居中项实时更新选择 */
+function onTimeScroll(col, list, key) {
+  const idx = Math.round(col.scrollTop / TIME_ITEM_H)
+  const v = list[Math.min(Math.max(idx, 0), list.length - 1)]
+  if (v) tmpTime[key] = v
+}
+function pickTime(col, list, key, i) {
+  tmpTime[key] = list[i]
+  col.scrollTop = i * TIME_ITEM_H
+}
+function confirmTime() {
+  e.value.time = `${tmpTime.h}:${tmpTime.m}:${tmpTime.s}`
+  showTime.value = false
+}
 
 function openTemplates() {
   showPicker.value = false
@@ -459,10 +500,13 @@ const displayAmount = computed(() => e.value.amount || '0')
       <span class="acc-chev">›</span>
     </button>
 
-    <!-- 备注 / 日期 -->
+    <!-- 备注 / 日期 / 时间 -->
     <div class="meta">
       <input class="note" v-model="e.note" placeholder="添加备注…" maxlength="30" />
       <input class="date" type="date" v-model="e.date" />
+      <button class="time-btn" @click="openTime" title="记账时间（精确到秒）">
+        🕒 {{ e.time || nowTime() }}
+      </button>
     </div>
 
     <!-- 凭证图片：拍摄 / 相册选图，随这笔记录保存 -->
@@ -580,6 +624,47 @@ const displayAmount = computed(() => e.value.amount || '0')
         <button class="ph-opt" @click="takePhoto">📷 拍照</button>
         <button class="ph-opt" @click="choosePhoto">🖼️ 从相册选择</button>
         <button class="ph-cancel" @click="showPhotoPicker = false">取消</button>
+      </div>
+    </div>
+
+    <!-- 记账时间选择（时 / 分 / 秒） -->
+    <div v-if="showTime" class="mask" @click="showTime = false">
+      <div class="picker time-picker" @click.stop>
+        <div class="pk-head">记账时间
+          <button class="tpl-x" @click="showTime = false">✕</button>
+        </div>
+        <div class="time-body">
+          <div class="tcol" ref="hourCol" @scroll="onTimeScroll(hourCol, HOURS, 'h')">
+            <div class="pad"></div>
+            <button
+              v-for="(h, i) in HOURS" :key="h"
+              class="tnum" :class="{ sel: tmpTime.h === h }"
+              @click="pickTime(hourCol, HOURS, 'h', i)"
+            >{{ h }}</button>
+            <div class="pad"></div>
+          </div>
+          <span class="tcolon">:</span>
+          <div class="tcol" ref="minCol" @scroll="onTimeScroll(minCol, MINS, 'm')">
+            <div class="pad"></div>
+            <button
+              v-for="(m, i) in MINS" :key="m"
+              class="tnum" :class="{ sel: tmpTime.m === m }"
+              @click="pickTime(minCol, MINS, 'm', i)"
+            >{{ m }}</button>
+            <div class="pad"></div>
+          </div>
+          <span class="tcolon">:</span>
+          <div class="tcol" ref="secCol" @scroll="onTimeScroll(secCol, SECS, 's')">
+            <div class="pad"></div>
+            <button
+              v-for="(s, i) in SECS" :key="s"
+              class="tnum" :class="{ sel: tmpTime.s === s }"
+              @click="pickTime(secCol, SECS, 's', i)"
+            >{{ s }}</button>
+            <div class="pad"></div>
+          </div>
+        </div>
+        <button class="pk-btn ok" @click="confirmTime">确定</button>
       </div>
     </div>
 
@@ -717,9 +802,48 @@ const displayAmount = computed(() => e.value.amount || '0')
   display: flex; align-items: center; gap: 8px;
   padding: 8px 14px; border-top: 1px solid var(--line);
 }
-.note { flex: 1; font-size: 14px; padding: 8px 10px; background: var(--bg); border-radius: 8px; }
+.note { flex: 1; min-width: 0; font-size: 14px; padding: 8px 10px; background: var(--bg); border-radius: 8px; }
 .date {
   font-size: 14px; padding: 8px; background: var(--bg); border-radius: 8px; color: var(--text-2);
+}
+.time-btn {
+  flex-shrink: 0;
+  font-size: 14px; padding: 8px 10px; background: var(--bg);
+  border-radius: 8px; color: var(--text-2); font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.time-btn:active { background: #EAEAEA; }
+
+/* 记账时间：时 / 分 / 秒 滚轮选择 */
+.time-picker { max-height: 78%; }
+.time-picker .pk-head { position: relative; font-weight: 600; color: var(--text); }
+.time-body {
+  position: relative;
+  display: flex; align-items: stretch; justify-content: center; gap: 0;
+  padding: 10px 0 14px;
+}
+.time-body::before {
+  content: ''; position: absolute; left: 12px; right: 12px; top: 50%;
+  height: 40px; transform: translateY(-50%);
+  background: var(--brand-light); border-radius: 8px; pointer-events: none;
+}
+.tcol {
+  position: relative; z-index: 1;
+  flex: 1; max-width: 84px; height: 200px; overflow-y: auto;
+  scroll-snap-type: y mandatory; -webkit-overflow-scrolling: touch;
+}
+.tcol::-webkit-scrollbar { width: 0; }
+.tcol .pad { height: 80px; }
+.tnum {
+  display: block; width: 100%; height: 40px; line-height: 40px;
+  scroll-snap-align: center;
+  font-size: 19px; color: var(--text-2); font-variant-numeric: tabular-nums;
+}
+.tnum.sel { color: var(--brand-dark); font-weight: 700; font-size: 21px; }
+.tcolon {
+  position: relative; z-index: 1; align-self: center;
+  font-size: 20px; font-weight: 700; color: var(--text-2);
+  padding: 0 2px;
 }
 
 /* 账户选择：放大为独立整行，点击弹出选择器 */

@@ -99,4 +99,81 @@ console.log('年度结转：')
   ok('撤销后 a 余额=150（2023 与 2025 流水全部解封）', accountBalanceOf('a') === 150)
 }
 
+console.log(`\n阶段一通过：${pass} 项断言`)
+
+// ---- 记账时间精确到秒 ----
+const { openAdd, openEdit, saveEditing, monthRecords, duplicateRecord, timeOf, nowTime } = ledger
+console.log('记账时间精确到秒：')
+{
+  state.records = []
+  state.accounts = [{ id: 'a', groupId: 'financial', name: '现金' }]
+
+  // openAdd 默认带 time（HH:MM:SS）
+  openAdd('expense')
+  ok('openAdd 默认 time 格式 HH:MM:SS', /^([01]\d|2[0-3]):[0-5]\d:[0-5]\d$/.test(state.editing.time))
+  state.editing.categoryId = 'food'
+  state.editing.accountId = 'a'
+  state.editing.amount = '12.5'
+  saveEditing()
+  ok('保存后记录含 time', /^\d{2}:\d{2}:\d{2}$/.test(state.records[0].time))
+
+  // 同日两条记录按 time 倒序（晚的在上）
+  state.month = '2024-05'
+  state.records = []
+  addRecord({ type: 'expense', amount: 10, categoryId: 'food', accountId: 'a', date: '2024-05-01', time: '08:00:00' })
+  addRecord({ type: 'expense', amount: 20, categoryId: 'food', accountId: 'a', date: '2024-05-01', time: '20:30:15' })
+  addRecord({ type: 'expense', amount: 30, categoryId: 'food', accountId: 'a', date: '2024-05-01', time: '12:05:09' })
+  const same = monthRecords.value
+  ok('同日按时间倒序（20:30 最前）', same[0].time === '20:30:15' && same[1].time === '12:05:09' && same[2].time === '08:00:00')
+
+  // 跨日排序仍按日期倒序
+  state.records = []
+  addRecord({ type: 'expense', amount: 1, categoryId: 'food', accountId: 'a', date: '2024-05-02', time: '01:00:00' })
+  addRecord({ type: 'expense', amount: 2, categoryId: 'food', accountId: 'a', date: '2024-05-01', time: '23:59:59' })
+  const cross = monthRecords.value
+  ok('跨日按日期倒序（05-02 在最前）', cross[0].date === '2024-05-02')
+
+  // 旧数据无 time 时，timeOf 由 createdAt 回推到秒（本地时区一致）
+  const legacy = { id: 'old', type: 'expense', amount: 5, createdAt: new Date(2024, 0, 1, 9, 8, 7).getTime() }
+  ok('timeOf 旧数据回推到秒', timeOf(legacy) === '09:08:07')
+
+  // 编辑时 time 被带入 editing（无 time 的旧记录按 createdAt 回推）
+  state.records = [{ id: 'old', type: 'expense', amount: 5, categoryId: 'food', accountId: 'a', date: '2024-01-01', createdAt: new Date(2024, 0, 1, 9, 8, 7).getTime() }]
+  openEdit('old')
+  ok('openEdit 旧记录 time 由 createdAt 回推', state.editing.time === '09:08:07')
+
+  // duplicateRecord 复制为今天并记录当前时间
+  state.records = []
+  addRecord({ type: 'expense', amount: 9, categoryId: 'food', accountId: 'a', date: '2024-05-01', time: '10:00:00' })
+  const cid = duplicateRecord(state.records[0].id)
+  ok('复制记录日期取今天', state.records.find(r => r.id === cid).date === todayStr())
+  ok('复制记录带 time（HH:MM:SS）', /^\d{2}:\d{2}:\d{2}$/.test(state.records.find(r => r.id === cid).time))
+}
+
+function todayStr() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+// ---- 导入 time 字段 ----
+const { applyImport } = await import('../src/utils/dataIO.js')
+console.log('导入 time：')
+{
+  state.records = []
+  state.accounts = [{ id: 'a', groupId: 'financial', name: '现金' }]
+  // 模拟一份「合并」导入结果（含时间列），验证 time 被保留
+  const data = {
+    kind: 'records',
+    accounts: [{ id: 'a', groupId: 'financial', name: '现金' }],
+    records: [{
+      id: 'imp1', type: 'expense', amount: 18, date: '2024-04-01',
+      time: '07:15:30', categoryId: 'food', accountName: '现金', accountIdRef: 'a'
+    }],
+    templates: []
+  }
+  applyImport(data, 'merge')
+  const rec = state.records.find(r => r.id === 'imp1')
+  ok('导入保留 time（精确到秒）', rec && rec.time === '07:15:30')
+}
+
 console.log(`\n全部通过：${pass} 项断言`)
