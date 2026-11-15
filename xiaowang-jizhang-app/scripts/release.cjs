@@ -95,11 +95,15 @@ console.log(`下载页已更新：v${version} / ${sizeMB} MB`)
 let publishOut = ''
 if (doPublish) {
   step('5/7 发布下载站')
-  publishOut = execSync(
-    `node ${PUBLISH_SCRIPT} --dir ${SITE_DIR} --language node 2>&1`,
-    { env, shell: '/bin/bash', maxBuffer: 1024 * 1024 * 8 }
-  ).toString()
-  console.log(publishOut.trim().split('\n').slice(-6).join('\n'))
+  try {
+    publishOut = execSync(
+      `node ${PUBLISH_SCRIPT} --dir ${SITE_DIR} --language node 2>&1`,
+      { env, shell: '/bin/bash', maxBuffer: 1024 * 1024 * 8 }
+    ).toString()
+    console.log(publishOut.trim().split('\n').slice(-6).join('\n'))
+  } catch (e) {
+    console.error('✗ 下载站发布失败（不影响后续 GitHub Release 与 Git 推送）')
+  }
 } else {
   step('5/7 发布下载站（已跳过 --no-publish）')
 }
