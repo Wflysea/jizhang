@@ -7,8 +7,8 @@ android {
         applicationId "com.xiaowang.jizhang"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 11700
-        versionName "1.17.0"
+        versionCode 11701
+        versionName "1.17.1"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,10 +16,29 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // 正式签名：仅当项目根目录存在 keystore.properties 时启用（密钥与密码不入库）
+    def keyPropsFile = rootProject.file('keystore.properties')
+    def haveReleaseKey = keyPropsFile.exists()
+    if (haveReleaseKey) {
+        def keyProps = new Properties()
+        keyProps.load(new FileInputStream(keyPropsFile))
+        signingConfigs {
+            release {
+                storeFile rootProject.file(keyProps['storeFile'])
+                storePassword keyProps['storePassword']
+                keyAlias keyProps['keyAlias']
+                keyPassword keyProps['keyPassword']
+            }
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (haveReleaseKey) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }

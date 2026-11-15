@@ -8,6 +8,8 @@ android/app/build/
 android/build/
 android/.gradle/
 android/local.properties
+xiaowang-jizhang-app/android/keystore.properties
+xiaowang-jizhang-app/android/release-key.jks
 android/capacitor-cordova-android-plugins/build/
 
 # 系统文件
