@@ -1,7 +1,7 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
 import {
-  state, RANGES, rangeBounds, shiftMonth, nowMonth,
+  state, RANGES, rangeBounds, shiftMonth, nowMonth, budgetUsage, totalBudgetOver,
   summaryOfRange, groupsOfRange, openEdit,
   removeRecord, duplicateRecord, accountName, transferText, timeOf
 } from '../store/ledger.js'
@@ -34,6 +34,10 @@ function iconOf(r) {
 }
 
 const isCurrent = computed(() => state.month === nowMonth())
+
+/* 预算概览（当前查看月份） */
+const usage = computed(() => budgetUsage.value)
+const overCats = computed(() => usage.value.categories.filter(c => c.over))
 
 function weekday(dateStr) {
   const d = new Date(dateStr.replace(/-/g, '/'))
@@ -152,6 +156,48 @@ function actDel(r) {
       <p class="sub">按 今天 / 本周 / 本月 / 本年 分类查看</p>
     </header>
 
+    <!-- 预算概览（本月） -->
+    <div class="budget-card" @click="state.budgetOpen = true">
+      <template v-if="usage.total">
+        <div class="bc-top">
+          <span class="bc-name">📊 本月预算</span>
+          <span class="bc-val amount-font">已花 ¥{{ (usage.total.spent).toFixed(2) }} / ¥{{ (usage.total.budget).toFixed(2) }}</span>
+        </div>
+        <div class="bc-bar"><i :class="{ over: usage.total.over }" :style="{ width: (usage.total.percent * 100) + '%' }"></i></div>
+        <div class="bc-bot">
+          <span :class="usage.total.over ? 'over' : ''">
+            {{ usage.total.over ? '已超支' : '剩余' }} ¥{{ Math.abs(usage.total.remain).toFixed(2) }}
+          </span>
+          <span class="bc-go">去管理 ›</span>
+        </div>
+      </template>
+
+      <template v-else-if="overCats.length">
+        <div class="bc-top">
+          <span class="bc-name warn">⚠️ 预算提醒</span>
+          <span class="bc-go">去管理 ›</span>
+        </div>
+        <div class="bc-warn">
+          {{ overCats.map(c => c.name).slice(0, 3).join('、') }}
+          {{ overCats.length > 3 ? `等 ${overCats.length} 个分类` : ' 已超预算' }}
+        </div>
+      </template>
+
+      <template v-else-if="usage.categories.length">
+        <div class="bc-top">
+          <span class="bc-name">📊 分类预算 · {{ usage.categories.length }} 项</span>
+          <span class="bc-go">去管理 ›</span>
+        </div>
+      </template>
+
+      <template v-else>
+        <div class="bc-top">
+          <span class="bc-name">📊 设置预算，掌控开支</span>
+          <span class="bc-go">去设置 ›</span>
+        </div>
+      </template>
+    </div>
+
     <!-- 一级菜单：今天 / 本周 / 本月 / 本年（竖向排列） -->
     <div class="menu">
       <section
@@ -263,6 +309,24 @@ function actDel(r) {
 }
 .topbar h1 { font-size: 19px; font-weight: 700; }
 .topbar .sub { font-size: 13px; opacity: .85; margin-top: 3px; }
+
+/* 预算概览卡片 */
+.budget-card {
+  margin: 10px 12px 0; padding: 12px 14px;
+  background: #fff; border-radius: 12px; box-shadow: 0 1px 4px rgba(0, 0, 0, .04);
+}
+.budget-card:active { background: #FAFAFA; }
+.bc-top { display: flex; align-items: center; justify-content: space-between; }
+.bc-name { font-size: 14px; font-weight: 600; }
+.bc-name.warn { color: var(--expense); }
+.bc-val { font-size: 13px; color: var(--text-2); }
+.bc-go { font-size: 13px; color: var(--text-3); }
+.bc-bar { height: 6px; background: #F2F3F5; border-radius: 3px; overflow: hidden; margin: 9px 0 7px; }
+.bc-bar i { display: block; height: 100%; border-radius: 3px; background: var(--brand); transition: width .35s ease; }
+.bc-bar i.over { background: var(--expense); }
+.bc-bot { display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: var(--text-2); }
+.bc-bot .over { color: var(--expense); font-weight: 600; }
+.bc-warn { font-size: 13px; color: var(--expense); margin-top: 6px; }
 
 /* 一级菜单容器 */
 .menu { padding: 10px 0 4px; }

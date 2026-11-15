@@ -47,7 +47,7 @@ console.log('ZIP 往返：')
 
 // ---- 年度结转 ----
 const ledger = await import('../src/store/ledger.js')
-const { state, accountBalanceOf, carryOver, undoCarryOver, carryOverYear, carryOverInfo, addRecord, accountBalances } = ledger
+const { state, accountBalanceOf, carryOver, undoCarryOver, carryOverYear, carryOverInfo, addRecord, accountBalances, addBudget, updateBudget, removeBudget, getBudget, budgetUsage, totalBudgetOver } = ledger
 console.log('年度结转：')
 {
   // 重置
@@ -174,6 +174,65 @@ console.log('导入 time：')
   applyImport(data, 'merge')
   const rec = state.records.find(r => r.id === 'imp1')
   ok('导入保留 time（精确到秒）', rec && rec.time === '07:15:30')
+}
+
+// ---- 预算管理 ----
+console.log('预算管理：')
+{
+  // 准备：固定月份、清空干扰数据
+  state.budgets = []
+  state.records = []
+  state.accounts = [{ id: 'a', groupId: 'financial', name: '现金' }]
+  state.month = '2024-03'
+
+  // 新增总预算 + 分类预算
+  const total = addBudget({ categoryId: null, amount: 1000 })
+  ok('新增总预算（categoryId=null）', total.categoryId === null && total.amount === 1000 && state.budgets.length === 1)
+  ok('getBudget(null) 命中总预算', getBudget(null) && getBudget(null).id === total.id)
+  const food = addBudget({ categoryId: 'food', amount: 400 })
+  ok('新增分类预算', food.categoryId === 'food' && state.budgets.length === 2)
+  ok('同维度预算唯一（getBudget）', getBudget('food').id === food.id)
+
+  // 无支出时剩余=预算、未超支
+  ok('无支出时总预算剩余=预算', budgetUsage.value.total.remain === 1000 && !budgetUsage.value.total.over)
+
+  // 加支出：food 300 + shopping 500 = 800（总预算内）
+  addRecord({ type: 'expense', amount: 300, categoryId: 'food', accountId: 'a', date: '2024-03-05' })
+  addRecord({ type: 'expense', amount: 500, categoryId: 'shopping', accountId: 'a', date: '2024-03-06' })
+  ok('总预算已花=800', Math.abs(budgetUsage.value.total.spent - 800) < 0.001)
+  ok('总预算剩余=200', Math.abs(budgetUsage.value.total.remain - 200) < 0.001)
+  ok('总预算未超支', !budgetUsage.value.total.over)
+
+  // 分类预算 food 已花 300/400
+  const fu = budgetUsage.value.categories.find(c => c.categoryId === 'food')
+  ok('food 分类预算已花=300', Math.abs(fu.spent - 300) < 0.001)
+  ok('food 分类预算剩余=100', Math.abs(fu.remain - 100) < 0.001)
+  ok('无分类预算的 shopping 不进分类预算列表', !budgetUsage.value.categories.find(c => c.categoryId === 'shopping'))
+
+  // 再加 300 让总预算超支
+  addRecord({ type: 'expense', amount: 300, categoryId: 'transport', accountId: 'a', date: '2024-03-07' })
+  ok('总预算超支判定', budgetUsage.value.total.over === true)
+  ok('总预算超支额=-100', Math.abs(budgetUsage.value.total.remain + 100) < 0.001)
+  ok('totalBudgetOver()=true', totalBudgetOver() === true)
+
+  // 收入 / 转账不计入支出（不影响预算）
+  addRecord({ type: 'income', amount: 9999, categoryId: 'salary', accountId: 'a', date: '2024-03-08' })
+  addRecord({ type: 'transfer', amount: 50, fromAccountId: 'a', toAccountId: 'a', date: '2024-03-09' })
+  ok('收入/转账不影响总预算支出', Math.abs(budgetUsage.value.total.spent - 1100) < 0.001)
+
+  // 修改预算金额
+  updateBudget(total.id, { amount: 2000 })
+  ok('修改总预算金额生效', getBudget(null).amount === 2000)
+  ok('调高预算后不再超支', budgetUsage.value.total.over === false)
+
+  // 删除分类预算
+  removeBudget(food.id)
+  ok('删除分类预算', !getBudget('food') && state.budgets.length === 1)
+
+  // 预算定义跨月保留，但换月后支出清零
+  state.month = '2024-04'
+  ok('换月后预算定义保留', state.budgets.length === 1)
+  ok('换月后本月支出=0', budgetUsage.value.total.spent === 0)
 }
 
 console.log(`\n全部通过：${pass} 项断言`)

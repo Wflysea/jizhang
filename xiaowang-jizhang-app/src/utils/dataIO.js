@@ -9,7 +9,7 @@
  */
 import * as XLSX from 'xlsx'
 import { state, accountName } from '../store/ledger.js'
-import { ACCOUNT_GROUPS, getCategories, getCategory, normalizeGroupId } from '../data/categories.js'
+import { ACCOUNT_GROUPS, getCategories, getCategory, normalizeGroupId, EXPENSE_CATEGORIES } from '../data/categories.js'
 import { exportFile } from './fileExport.js'
 import {
   zipStore, unzip, isZip, base64ToBytes, bytesToBase64,
@@ -118,6 +118,19 @@ export function exportBackup(balances, summaryBuilders) {
     const wsTpl = XLSX.utils.json_to_sheet(tpl)
     wsTpl['!cols'] = [{ wch: 18 }, { wch: 8 }, { wch: 10 }, { wch: 10 }, { wch: 26 }, { wch: 20 }, { wch: 22 }]
     XLSX.utils.book_append_sheet(wb, wsTpl, '模板')
+  }
+
+  // 预算（总预算 + 分类预算），分类预算按名称写入，回导时按名称/id 还原
+  const budgets = state.budgets.map(b => ({
+    '类型': b.categoryId === null ? '总预算' : '分类预算',
+    '分类': b.categoryId === null ? '' : (getCategory('expense', b.categoryId).name),
+    '每月预算': b.amount,
+    '预算ID': b.id
+  }))
+  if (budgets.length) {
+    const wsBg = XLSX.utils.json_to_sheet(budgets)
+    wsBg['!cols'] = [{ wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 22 }]
+    XLSX.utils.book_append_sheet(wb, wsBg, '预算')
   }
 
   const xlsxB64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' })
@@ -322,6 +335,39 @@ function normTemplate(row) {
   return o
 }
 
+/** 预算行归一：总预算（无分类）或分类预算；非法金额/未知分类返回 null。
+ *  同时兼容「原始 Excel 行」与「已归一化对象」（applyImport 会二次归一，须幂等）。 */
+function normBudget(row) {
+  if (!row) return null
+  const type = String(row['类型'] ?? row.type ?? '').trim()
+  const hasExplicitCatId = row.categoryId !== null && row.categoryId !== undefined && row.categoryId !== ''
+  const rawCatEmpty = String(row['分类'] ?? row.category ?? '').trim() === ''
+  // 已显式携带 categoryId 的对象（applyImport 二次归一）直接以其为准，
+  // 不再看「分类」列是否为空，否则归一化对象会被误判为总预算。
+  const isTotal = !hasExplicitCatId && (/总预算|total/.test(type) || rawCatEmpty)
+  const amount = Number(String(row['每月预算'] ?? row.amount ?? '').toString().replace(/[¥,\s]/g, ''))
+  if (!Number.isFinite(amount) || amount <= 0) return null
+
+  let categoryId = null
+  if (!isTotal) {
+    // 已归一化对象直接带 categoryId；原始行按名称/id 匹配
+    if (hasExplicitCatId) {
+      categoryId = String(row.categoryId)
+    } else {
+      const catName = String(row['分类'] ?? row.category ?? '').trim()
+      if (!catName) return null
+      const c = EXPENSE_CATEGORIES.find(x => x.id === catName || x.name === catName)
+      if (!c) return null
+      categoryId = c.id
+    }
+  }
+  return {
+    id: String(row['预算ID'] ?? row.id ?? '').trim(),
+    categoryId,
+    amount: money2(amount)
+  }
+}
+
 /**
  * 解析导入文件（仅 .xlsx / .xls）
  * @returns {Promise<{kind, source, accounts, records, templates}>}
@@ -373,6 +419,7 @@ export function parseImportFile(file) {
         const accounts = []
         const records = []
         const templates = []
+        const budgets = []
 
         for (const sheetName of wb.SheetNames) {
           const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: '' })
@@ -387,8 +434,13 @@ export function parseImportFile(file) {
             (head.some(h => /日期/.test(h)) && head.some(h => /金额/.test(h)))
           // 分类汇总 / 月度汇总这类统计表不参与导入
           const isSummarySheet = /汇总|统计/.test(sheetName)
+          // 预算表（含「预算」字样或「每月预算」列且非流水表）
+          const isBudgetSheet = /预算/.test(sheetName) ||
+            (head.some(h => /每月预算/.test(h)) && !head.some(h => /日期/.test(h)) && !isSummarySheet)
 
-          if (isTemplateSheet) {
+          if (isBudgetSheet) {
+            for (const r of rows) { const b = normBudget(r); if (b) budgets.push(b) }
+          } else if (isTemplateSheet) {
             for (const r of rows) { const t = normTemplate(r); if (t) templates.push(t) }
           } else if (isAccountSheet) {
             for (const r of rows) { const a = normAccount(r); if (a) accounts.push(a) }
@@ -397,18 +449,19 @@ export function parseImportFile(file) {
           }
         }
 
-        if (!accounts.length && !records.length && !templates.length) {
-          throw new Error('表格中没有可导入的数据（需含「账户」「明细流水」或「模板」工作表）')
+        if (!accounts.length && !records.length && !templates.length && !budgets.length) {
+          throw new Error('表格中没有可导入的数据（需含「账户」「明细流水」「模板」或「预算」工作表）')
         }
         const imageCount = Object.values(imageMap).reduce((s, arr) => s + arr.filter(Boolean).length, 0)
         resolve({
-          kind: templates.length && !accounts.length && !records.length
+          kind: templates.length && !accounts.length && !records.length && !budgets.length
             ? 'templates'
-            : (accounts.length && records.length ? 'backup' : (accounts.length ? 'accounts' : 'records')),
+            : (accounts.length && records.length ? 'backup' : (accounts.length ? 'accounts' : (records.length ? 'records' : 'budgets'))),
           source: isZip(buf) ? 'ZIP 备份' : 'Excel',
           accounts,
           records,
           templates,
+          budgets,
           images: imageMap,
           imageCount
         })
@@ -425,6 +478,7 @@ export function parseImportFile(file) {
 
 let accSeq = 0
 let recSeq = 0
+let bgSeq = 0
 
 /**
  * 生成「账户引用 → accountId」的解析器。
@@ -504,6 +558,35 @@ function materializeTemplates(rawTemplates, result, replace) {
 }
 
 /**
+ * 预算写入：replace 时整体替换；merge 时按 id 或「分类维度」去重（同一分类只有一个预算）。
+ * 需在账户/流水处理完之后调用（预算不依赖它们，但逻辑上放最后更清晰）。
+ */
+function materializeBudgets(rawBudgets, result, replace) {
+  const ids = new Set(state.budgets.map(x => x.id))
+  const catKeys = new Set(state.budgets.map(x => x.categoryId === null ? 'total' : x.categoryId))
+
+  if (replace) {
+    if (!rawBudgets.length) return
+    state.budgets = rawBudgets.map((b, i) => {
+      const id = b.id && !ids.has(b.id) ? b.id : `imp_bg_${Date.now()}_${i}`
+      ids.add(id)
+      return { id, categoryId: b.categoryId, amount: b.amount, createdAt: Date.now() }
+    })
+    result.addedBudgets = state.budgets.length
+    return
+  }
+
+  for (const b of rawBudgets) {
+    const key = b.categoryId === null ? 'total' : b.categoryId
+    if ((b.id && ids.has(b.id)) || catKeys.has(key)) { result.skippedBudgets++; continue }
+    const id = b.id || `imp_bg_${Date.now()}_${bgSeq++}`
+    ids.add(id); catKeys.add(key)
+    state.budgets.push({ id, categoryId: b.categoryId, amount: b.amount, createdAt: Date.now() })
+    result.addedBudgets++
+  }
+}
+
+/**
  * 写入导入的数据
  * @param {{accounts:Array, records:Array, templates:Array}} data parseImportFile 的结果
  * @param {'merge'|'replace'} mode 合并（跳过重复）/ 覆盖（替换全部）
@@ -513,11 +596,13 @@ export function applyImport(data, mode = 'merge') {
   const rawAccounts = (data.accounts || []).map(normAccount).filter(Boolean)
   const rawRecords = (data.records || []).map(normRecord).filter(Boolean)
   const rawTemplates = (data.templates || []).map(normTemplate).filter(Boolean)
+  const rawBudgets = (data.budgets || []).map(normBudget).filter(Boolean)
   const imageMap = data.images || {}
   const result = {
     addedAccounts: 0, skippedAccounts: 0,
     addedRecords: 0, skippedRecords: 0, createdAccounts: 0,
-    addedTemplates: 0, skippedTemplates: 0
+    addedTemplates: 0, skippedTemplates: 0,
+    addedBudgets: 0, skippedBudgets: 0
   }
 
   if (mode === 'replace') {
@@ -556,6 +641,7 @@ export function applyImport(data, mode = 'merge') {
     })
     result.addedRecords = state.records.length
     materializeTemplates(rawTemplates, result, true)
+    materializeBudgets(rawBudgets, result, true)
     return result
   }
 
@@ -601,6 +687,7 @@ export function applyImport(data, mode = 'merge') {
   }
 
   materializeTemplates(rawTemplates, result, false)
+  materializeBudgets(rawBudgets, result, false)
   return result
 }
 

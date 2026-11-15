@@ -106,8 +106,12 @@ export const state = reactive({
   range: 'month',
   /** 记账模板列表（持久化） */
   templates: loadTemplates(),
+  /** 预算列表（持久化，按自然月维度；categoryId 为 null 表示总预算） */
+  budgets: loadBudgets(),
   /** 记一笔弹层：null | { type, categoryId, amount, note, date, accountId } */
-  editing: null
+  editing: null,
+  /** 预算管理全屏页是否打开 */
+  budgetOpen: false
 })
 
 /** 明细页可选的时间范围 */
@@ -163,6 +167,14 @@ watch(
   () => state.templates,
   (v) => {
     try { localStorage.setItem(TEMPLATE_KEY, JSON.stringify(v)) } catch (e) { /* 忽略配额错误 */ }
+  },
+  { deep: true }
+)
+
+watch(
+  () => state.budgets,
+  (v) => {
+    try { localStorage.setItem(BUDGET_KEY, JSON.stringify(v)) } catch (e) { /* 忽略配额错误 */ }
   },
   { deep: true }
 )
@@ -708,6 +720,131 @@ export function removeEditing() {
 
 export function clearAll() {
   state.records = []
+}
+
+/* ---------- 预算管理 ----------
+ * 预算按「自然月」维度设置，作用于每一个月：
+ *  - 总预算（budget.categoryId 为 null）：约束整月支出上限
+ *  - 分类预算（budget.categoryId 为具体分类 id）：约束该分类的整月支出
+ * 预算金额只设置一次、所有月份共用；使用时按「当前查看的月份」统计实际支出。
+ * 统计口径与收支汇总一致：转账、余额调整、期初余额均不计入支出。
+ */
+const BUDGET_KEY = 'xwj_budgets_v1'
+
+function loadBudgets() {
+  try {
+    const raw = localStorage.getItem(BUDGET_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) {
+        return parsed.map(b => ({
+          id: b.id || `bg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          categoryId: (b.categoryId === undefined || b.categoryId === null) ? null : String(b.categoryId),
+          amount: Number(b.amount) || 0,
+          createdAt: b.createdAt || Date.now()
+        }))
+      }
+    }
+  } catch (e) { /* 解析失败则按空处理 */ }
+  return []
+}
+
+/** 安全数值：非数字 → 0 */
+function num(v) {
+  const n = Number(v)
+  return Number.isFinite(n) ? n : 0
+}
+
+let bgSeq = 0
+
+/** 新增预算；categoryId 为 null/空 表示总预算，否则为具体支出分类 id。返回新建的预算对象 */
+export function addBudget({ categoryId, amount }) {
+  const amt = Math.round(num(amount) * 100) / 100
+  const id = `bg_${Date.now()}_${bgSeq++}`
+  const b = {
+    id,
+    categoryId: (categoryId === undefined || categoryId === null || categoryId === '') ? null : String(categoryId),
+    amount: amt,
+    createdAt: Date.now()
+  }
+  state.budgets.push(b)
+  return b
+}
+
+/** 修改预算金额 / 分类；返回更新后的对象，找不到返回 null */
+export function updateBudget(id, patch) {
+  const b = state.budgets.find(x => x.id === id)
+  if (!b) return null
+  if (patch.amount !== undefined) b.amount = Math.round(num(patch.amount) * 100) / 100
+  if (patch.categoryId !== undefined) {
+    b.categoryId = (patch.categoryId === null || patch.categoryId === '') ? null : String(patch.categoryId)
+  }
+  return b
+}
+
+/** 删除预算 */
+export function removeBudget(id) {
+  const i = state.budgets.findIndex(x => x.id === id)
+  if (i > -1) state.budgets.splice(i, 1)
+}
+
+/** 取某分类的预算（categoryId 为 null 表示总预算）；不存在返回 null */
+export function getBudget(categoryId) {
+  const key = (categoryId === undefined || categoryId === null || categoryId === '') ? null : String(categoryId)
+  return state.budgets.find(b => b.categoryId === key) || null
+}
+
+/** 当前查看月份的预算执行情况（总预算 + 各分类预算） */
+export const budgetUsage = computed(() => {
+  const totalBudget = state.budgets.find(b => b.categoryId === null)
+  const catBudgets = state.budgets.filter(b => b.categoryId !== null)
+
+  const spentTotal = monthSummary.value.expense
+  const out = { total: null, categories: [] }
+
+  if (totalBudget && num(totalBudget.amount) > 0) {
+    const amt = num(totalBudget.amount)
+    const spent = Math.round(spentTotal * 100) / 100
+    const remain = Math.round((amt - spent) * 100) / 100
+    out.total = {
+      budget: amt,
+      spent,
+      remain,
+      percent: spent > amt ? 1 : (amt > 0 ? spent / amt : 0),
+      over: spent > amt
+    }
+  }
+
+  const stats = categoryStats('expense')
+  const statMap = new Map(stats.map(s => [s.id, s.amount]))
+  out.categories = catBudgets
+    .map(b => {
+      const amt = num(b.amount)
+      const spent = Math.round((statMap.get(b.categoryId) || 0) * 100) / 100
+      const remain = Math.round((amt - spent) * 100) / 100
+      const c = getCategory('expense', b.categoryId)
+      return {
+        id: b.id,
+        categoryId: b.categoryId,
+        name: c.name,
+        icon: c.icon,
+        color: c.color,
+        budget: amt,
+        spent,
+        remain,
+        percent: spent > amt ? 1 : (amt > 0 ? spent / amt : 0),
+        over: spent > amt
+      }
+    })
+    .sort((a, b) => b.percent - a.percent)
+
+  return out
+})
+
+/** 当前月份是否已超出总预算（用于首页提示） */
+export function totalBudgetOver() {
+  const t = budgetUsage.value.total
+  return !!(t && t.over)
 }
 
 /* ---------- 存储空间占用 ---------- */

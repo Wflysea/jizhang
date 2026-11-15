@@ -38,7 +38,18 @@ ws.addEventListener('message', e => {
   if (m.method === 'Page.javascriptDialogOpening') cdp('Page.handleJavaScriptDialog', { accept: true }).catch(() => {})
 })
 await cdp('Page.enable'); await cdp('Runtime.enable')
-await cdp('Page.navigate', { url: 'http://localhost:5173/' })
+
+// 自动探测 Vite dev server 端口（优先 5173，被占用时回退到 5174）
+let DEV_URL = null
+for (const port of [5173, 5174, 5175, 5176]) {
+  try {
+    const probe = await fetch(`http://localhost:${port}/`, { method: 'GET' })
+    if (probe.ok) { DEV_URL = `http://localhost:${port}/`; break }
+  } catch (_) { /* 端口未监听，继续 */ }
+}
+if (!DEV_URL) throw new Error('未找到 Vite dev server，请先启动 npm run dev')
+console.log('  使用 dev server：', DEV_URL)
+await cdp('Page.navigate', { url: DEV_URL })
 await sleep(2500)
 
 async function evalIn(expr) {
@@ -66,6 +77,10 @@ try {
       {id:'r2',type:'income',amount:200,categoryId:'salary',accountId:'a',note:'工资',date:'2024-05-02',createdAt:2}
     ]
     state.templates = []
+    state.budgets = [
+      { id: 'bg1', categoryId: null, amount: 1000, createdAt: 1 },
+      { id: 'bg2', categoryId: 'food', amount: 300, createdAt: 1 }
+    ]
 
     const detailRow = (r) => ({
       '日期': r.date,
@@ -87,21 +102,30 @@ try {
     URL.createObjectURL = orig
 
     // 用导出的 ZIP 还原成 File，再导入
-    let importResult = null, restoredImages = null
+    let importResult = null, restoredImages = null, parsedBudgetsDump = null
     if (bytes) {
       const file = new File([bytes], 'x.zip', { type: 'application/zip' })
       const parsed = await dataIOMod.parseImportFile(file)
-      importResult = { records: parsed.records.length, imageCount: parsed.imageCount, hasImages: !!parsed.images }
+      parsedBudgetsDump = parsed.budgets.map(b => ({ c: b.categoryId, a: b.amount }))
+      importResult = { records: parsed.records.length, imageCount: parsed.imageCount, hasImages: !!parsed.images, budgets: parsed.budgets.length }
       // 覆盖导入，验证图片回写
       dataIOMod.applyImport(parsed, 'replace')
       const recWithImg = state.records.find(x => x.id === 'r1')
       restoredImages = recWithImg ? (recWithImg.images ? recWithImg.images.length : 0) : -1
     }
 
+    // 预算：导出→导入后是否完整还原
+    const budgetsAfter = state.budgets.length
+    const hasTotalBg = !!state.budgets.find(b => b.categoryId === null && Math.abs(b.amount - 1000) < 0.001)
+    const hasFoodBg = !!state.budgets.find(b => b.categoryId === 'food' && Math.abs(b.amount - 300) < 0.001)
+    const budgetsParsed = importResult ? importResult.budgets : 0
+
     return JSON.stringify({
       zipped: r.zipped, images: r.images, name: r.name,
       zipBytes: bytes ? bytes.length : 0,
-      importResult, restoredImages,
+      importResult, restoredImages, budgetsParsed, budgetsAfter, hasTotalBg, hasFoodBg,
+      bgDump: state.budgets.map(b => ({ c: b.categoryId, a: b.amount })),
+      pBg: parsedBudgetsDump,
       balA: ledgerMod.accountBalanceOf('a')
     })
   })()`)
@@ -115,6 +139,10 @@ try {
   ok('导入识别到图片', data.importResult && data.importResult.imageCount === 1)
   ok('图片成功回写到记录（1 张）', data.restoredImages === 1)
   ok('导入后余额承接正确（200-88.5=111.5）', Math.abs(data.balA - 111.5) < 0.001)
+  ok('导出解析到 2 条预算', data.budgetsParsed === 2)
+  ok('导入后还原 2 条预算', data.budgetsAfter === 2)
+  ok('总预算金额还原正确', data.hasTotalBg === true)
+  ok('分类预算金额还原正确', data.hasFoodBg === true)
 } catch (e) {
   console.log('测试异常：', e.message)
   process.exitCode = 1

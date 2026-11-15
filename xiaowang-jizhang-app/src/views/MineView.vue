@@ -249,7 +249,14 @@ function doUndo() {
         <span class="val">{{ formatBytes(storageUsage.total) }}</span>
         <span class="arrow">›</span>
       </div>
-      <div class="li"><span class="li-ico">💰</span><span class="li-txt">预算管理</span><span class="arrow">›</span></div>
+      <button class="li" @click="state.budgetOpen = true">
+        <span class="li-ico">💰</span>
+        <span class="li-txt">
+          预算管理
+          <em class="li-sub">{{ state.budgets.length ? `已设置 ${state.budgets.length} 项预算` : '设置月度预算，掌控开支' }}</em>
+        </span>
+        <span class="arrow">›</span>
+      </button>
       <div class="li"><span class="li-ico">🏷️</span><span class="li-txt">分类管理</span><span class="arrow">›</span></div>
     </div>
 

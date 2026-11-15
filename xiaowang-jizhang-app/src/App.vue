@@ -7,6 +7,7 @@ import DetailView from './views/DetailView.vue'
 import StatsView from './views/StatsView.vue'
 import AccountView from './views/AccountView.vue'
 import MineView from './views/MineView.vue'
+import BudgetView from './views/BudgetView.vue'
 import { state, openAdd } from './store/ledger.js'
 import { handleBack } from './utils/back.js'
 
@@ -47,11 +48,19 @@ onMounted(() => {
 
     <AddSheet v-if="state.editing" />
 
+    <div v-if="state.budgetOpen" class="overlay"><BudgetView /></div>
+
     <div v-if="exitTip" class="exit-tip">{{ exitTip }}</div>
   </div>
 </template>
 
 <style scoped>
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  background: var(--bg);
+}
 .exit-tip {
   position: fixed; left: 50%; bottom: 100px; transform: translateX(-50%);
   background: rgba(0, 0, 0, .78); color: #fff;
