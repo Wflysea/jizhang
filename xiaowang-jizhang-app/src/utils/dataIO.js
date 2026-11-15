@@ -253,6 +253,9 @@ function normRecord(row) {
 
   // 期初余额标记（结转导出时写入「结转」列）
   const carryover = /^(是|true|1|yes|y)$/i.test(String(row.carryover ?? row['结转'] ?? '').trim())
+  // 余额调整标记（手动调余额导出时写入「调整」列）；未带标记时按分类 id 兜底判断
+  const adjust = /^(是|true|1|yes|y)$/i.test(String(row.adjust ?? row['调整'] ?? '').trim())
+    || row.categoryId === 'adjust_i' || row.categoryId === 'adjust_e'
 
   // 记账时间（精确到秒）：优先「时间」列，兼容英文 time；非法则忽略，回退到导入时间
   const rawTime = String(row.time ?? row['时间'] ?? '').trim()
@@ -267,10 +270,12 @@ function normRecord(row) {
     date,
     note: String(row.note ?? row['备注'] ?? '').trim().slice(0, 30),
     time,
-    carryover
+    carryover,
+    adjust
   }
-  // 期初余额：强制使用专用分类，避免按名称映射到「其他」
+  // 期初余额 / 余额调整：强制使用专用分类，避免按名称映射到「其他」后被计入收支
   if (carryover) o.categoryId = type === 'income' ? 'carryover_i' : 'carryover_e'
+  else if (adjust) o.categoryId = type === 'income' ? 'adjust_i' : 'adjust_e'
 
   // 账户引用可能来自两种写法：账户名（自己导出的 Excel）或账户 id（账号ID 列）
   const accRaw = String(row.account ?? row['账户'] ?? row.accountName ?? '').trim()
@@ -291,7 +296,7 @@ function normRecord(row) {
     o.fromIdRef = fromIdRef
     o.toIdRef = toIdRef
   } else {
-    o.categoryId = toCategory(type, row.categoryId ?? row['分类'] ?? row.category ?? '')
+    if (!carryover && !adjust) o.categoryId = toCategory(type, row.categoryId ?? row['分类'] ?? row.category ?? '')
     if (!accRaw && !idRef) return null
     o.accountName = accRaw.slice(0, 16)
     o.accountIdRef = idRef
@@ -627,7 +632,8 @@ export function applyImport(data, mode = 'merge') {
         time: r.time,
         note: r.note,
         createdAt: Date.now(),
-        carryover: r.carryover
+        carryover: r.carryover,
+        adjust: r.adjust
       }
       if (r.type === 'transfer') {
         o.fromAccountId = ensure(r.fromName, r.fromIdRef)
@@ -671,7 +677,8 @@ export function applyImport(data, mode = 'merge') {
       time: r.time,
       note: r.note,
       createdAt: Date.now(),
-      carryover: r.carryover
+      carryover: r.carryover,
+      adjust: r.adjust
     }
     if (r.type === 'transfer') {
       o.fromAccountId = ensure(r.fromName, r.fromIdRef)

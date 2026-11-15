@@ -2,7 +2,7 @@
 import { computed, reactive, ref } from 'vue'
 import {
   state, RANGES, rangeBounds, shiftMonth, nowMonth, budgetUsage, totalBudgetOver,
-  summaryOfRange, groupsOfRange, openEdit,
+  summaryOfRange, groupsOfRange, openEdit, isNonCountable,
   removeRecord, duplicateRecord, accountName, transferText, timeOf
 } from '../store/ledger.js'
 import { getCategory } from '../data/categories.js'
@@ -251,7 +251,7 @@ function actDel(r) {
                     <div class="sub">{{ subOf(item) }}</div>
                   </div>
                   <span class="time amount-font">{{ timeOf(item) }}</span>
-                  <span class="amt amount-font" :class="item.type">
+                  <span class="amt amount-font" :class="isNonCountable(item) ? 'adjust' : item.type">
                     {{ item.type === 'transfer' ? '' : (item.type === 'income' ? '+' : '-') }}{{ money(item.amount) }}
                   </span>
                   <button
@@ -424,6 +424,7 @@ function actDel(r) {
 .amt.expense { color: var(--expense); }
 .amt.income { color: var(--income); }
 .amt.transfer { color: var(--text-2); }
+.amt.adjust { color: var(--text-2); font-weight: 500; }   /* 余额调整：中性灰，区别于真实收支 */
 .ico.tf { background: #E6F2FF; }
 
 /* 凭证图片标记 */

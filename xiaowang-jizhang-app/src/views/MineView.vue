@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue'
 import {
   state, clearAll, transferText, accountBalances, accountName, timeOf,
-  storageUsage, formatBytes,
+  storageUsage, formatBytes, isNonCountable,
   carryOver, undoCarryOver, carryOverInfo
 } from '../store/ledger.js'
 import { getCategory } from '../data/categories.js'
@@ -15,35 +15,37 @@ import pkg from '../../package.json'
 /* ---------- 导出 ---------- */
 const busy = ref('')
 
-/** 明细流水行（转账写成「转出 → 转入」；期初余额单独标注） */
+/** 明细流水行（转账写成「转出 → 转入」；余额调整 / 期初余额保留真实类型并打标记，保证回导后仍不计入收支） */
 function detailRow(r) {
   if (r.carryover) {
     return {
       '日期': r.date,
       '时间': timeOf(r),
-      '类型': '期初',
+      '类型': r.type === 'income' ? '收入' : '支出',   // 保留真实类型，避免回导时丢失
       '分类': '期初余额',
       '金额': r.amount,
       '账户': accountName(r.accountId),
-      '备注': r.note || ''
+      '备注': r.note || '',
+      '结转': '是'                                       // 回导标记：期初余额
     }
   }
   return {
     '日期': r.date,
     '时间': timeOf(r),
     '类型': r.type === 'transfer' ? '转账' : (r.type === 'income' ? '收入' : '支出'),
-    '分类': r.type === 'transfer' ? '转账' : getCategory(r.type, r.categoryId).name,
+    '分类': r.type === 'transfer' ? '转账' : (r.adjust ? '余额调整' : getCategory(r.type, r.categoryId).name),
     '金额': r.amount,
     '账户': transferText(r),
-    '备注': r.note || ''
+    '备注': r.note || '',
+    '调整': r.adjust ? '是' : ''                          // 回导标记：余额调整
   }
 }
 
-/** 分类汇总（转账、余额调整不计入收支） */
+/** 分类汇总（转账、余额调整、期初余额不计入收支） */
 function byCategory() {
   const map = new Map()
   for (const r of state.records) {
-    if (r.adjust) continue
+    if (isNonCountable(r)) continue
     if (r.type === 'transfer') continue
     const type = r.type === 'income' ? '收入' : '支出'
     const name = getCategory(r.type, r.categoryId).name
@@ -56,11 +58,11 @@ function byCategory() {
   return [...map.values()].sort((a, b) => b['金额'] - a['金额'])
 }
 
-/** 月度汇总（不含余额调整、转账） */
+/** 月度汇总（不含余额调整、期初余额、转账） */
 function byMonth() {
   const map = new Map()
   for (const r of state.records) {
-    if (r.adjust) continue
+    if (isNonCountable(r)) continue
     if (r.type === 'transfer') continue
     const m = r.date.slice(0, 7)
     if (!map.has(m)) map.set(m, { '月份': m, '收入': 0, '支出': 0, '结余': 0 })

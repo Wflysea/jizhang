@@ -217,11 +217,23 @@ function recordsIn(start, end) {
     .sort((a, b) => (a.date === b.date ? tsOf(b) - tsOf(a) : (a.date < b.date ? 1 : -1)))
 }
 
+/** 特殊分类 id：余额调整 / 期初余额 */
+const ADJUST_CATS = new Set(['adjust_i', 'adjust_e', 'carryover_i', 'carryover_e'])
+
+/**
+ * 是否为「不计入收支」的账户修正类流水（余额调整 / 期初余额）。
+ * 以显式标志为准，并兼容按分类 id 兜底：历史导入数据可能丢失 adjust 标志，
+ * 但只要分类仍是余额调整 / 期初余额类 id，就不应被计入收入/支出，避免旧数据被错误统计。
+ */
+export function isNonCountable(r) {
+  return !!(r && (r.adjust || r.carryover || ADJUST_CATS.has(r.categoryId)))
+}
+
 /** 收支汇总（转账只是资金搬动，不计收入/支出，也不影响结余；余额调整同属「账户修正」，不计入收支） */
 function summarize(list) {
   let income = 0, expense = 0, transfer = 0
   for (const r of list) {
-    if (r.adjust || r.carryover) continue   // 余额调整 / 期初余额不计入收支
+    if (isNonCountable(r)) continue   // 余额调整 / 期初余额不计入收支
     if (r.type === 'transfer') { transfer += r.amount; continue }
     if (r.type === 'income') income += r.amount
     else expense += r.amount
@@ -239,7 +251,7 @@ function groupByDay(list) {
   return [...map.entries()].map(([date, items]) => {
     let income = 0, expense = 0
     for (const r of items) {
-      if (r.adjust || r.carryover) continue // 余额调整 / 期初余额不计入日收支
+      if (isNonCountable(r)) continue // 余额调整 / 期初余额不计入日收支
       if (r.type === 'transfer') continue
       if (r.type === 'income') income += r.amount
       else expense += r.amount
@@ -281,7 +293,7 @@ export function groupsOfRange(range) {
 export function categoryStats(type) {
   const map = new Map()
   for (const r of monthRecords.value) {
-    if (r.adjust || r.carryover) continue  // 余额调整 / 期初余额不计入分类统计
+    if (isNonCountable(r)) continue  // 余额调整 / 期初余额不计入分类统计
     if (r.type !== type) continue
     map.set(r.categoryId, (map.get(r.categoryId) || 0) + r.amount)
   }
@@ -304,7 +316,7 @@ export const trend = computed(() => {
     for (const r of state.records) {
       if (r.date.slice(0, 7) !== m) continue
       if (isClosed(r, cut)) continue       // 已封存往年流水不计入趋势
-      if (r.adjust || r.carryover) continue // 余额调整 / 期初余额不计入趋势
+      if (isNonCountable(r)) continue // 余额调整 / 期初余额不计入趋势
       if (r.type === 'transfer') continue
       if (r.type === 'income') income += r.amount
       else expense += r.amount

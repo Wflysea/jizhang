@@ -235,4 +235,33 @@ console.log('预算管理：')
   ok('换月后本月支出=0', budgetUsage.value.total.spent === 0)
 }
 
+// ---- 余额调整 / 期初余额 不计入收支（含历史污染数据容错） ----
+console.log('余额调整不计入收支：')
+{
+  const { monthSummary, isNonCountable } = ledger
+  state.records = []
+  state.budgets = []
+  state.month = '2024-05'
+
+  // 真实支出 100、收入 200
+  addRecord({ type: 'expense', amount: 100, categoryId: 'food', accountId: 'a', date: '2024-05-01' })
+  addRecord({ type: 'income', amount: 200, categoryId: 'salary', accountId: 'a', date: '2024-05-02' })
+
+  // 正常余额调整（带 adjust 标志）
+  addRecord({ type: 'income', amount: 500, categoryId: 'adjust_i', accountId: 'a', date: '2024-05-03', adjust: true })
+  // 历史污染数据：分类仍是 adjust_e，但 adjust 标志已丢失（旧版导入曾产生）
+  addRecord({ type: 'expense', amount: 300, categoryId: 'adjust_e', accountId: 'a', date: '2024-05-04' })
+  // 期初余额（带 carryover 标志）
+  addRecord({ type: 'income', amount: 400, categoryId: 'carryover_i', accountId: 'a', date: '2024-01-01', carryover: true })
+
+  ok('monthSummary 收入=200（不含余额调整/期初）', monthSummary.value.income === 200)
+  ok('monthSummary 支出=100（不含污染的分类预算调整）', monthSummary.value.expense === 100)
+  ok('isNonCountable 识别 adjust 标志', isNonCountable({ adjust: true }) === true)
+  ok('isNonCountable 识别 carryover 标志', isNonCountable({ carryover: true }) === true)
+  ok('isNonCountable 按分类 id 兜底 adjust_e', isNonCountable({ categoryId: 'adjust_e' }) === true)
+  ok('isNonCountable 按分类 id 兜底 carryover_i', isNonCountable({ categoryId: 'carryover_i' }) === true)
+  ok('isNonCountable 不误判普通支出', isNonCountable({ type: 'expense', categoryId: 'food' }) === false)
+  ok('isNonCountable 容忍 null', isNonCountable(null) === false)
+}
+
 console.log(`\n全部通过：${pass} 项断言`)

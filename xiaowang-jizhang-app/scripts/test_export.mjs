@@ -74,7 +74,9 @@ try {
     const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
     state.records = [
       {id:'r1',type:'expense',amount:88.5,categoryId:'food',accountId:'a',note:'午饭',date:'2024-05-01',createdAt:1,images:[png]},
-      {id:'r2',type:'income',amount:200,categoryId:'salary',accountId:'a',note:'工资',date:'2024-05-02',createdAt:2}
+      {id:'r2',type:'income',amount:200,categoryId:'salary',accountId:'a',note:'工资',date:'2024-05-02',createdAt:2},
+      {id:'r3',type:'income',amount:500,categoryId:'adjust_i',accountId:'a',note:'手动调余额',date:'2024-05-03',createdAt:3,adjust:true},
+      {id:'r4',type:'expense',amount:300,categoryId:'carryover_e',accountId:'b',note:'期初余额结转',date:'2024-01-01',createdAt:4,carryover:true}
     ]
     state.templates = []
     state.budgets = [
@@ -82,12 +84,19 @@ try {
       { id: 'bg2', categoryId: 'food', amount: 300, createdAt: 1 }
     ]
 
-    const detailRow = (r) => ({
-      '日期': r.date,
-      '类型': r.type==='transfer'?'转账':(r.type==='income'?'收入':'支出'),
-      '分类': r.type==='transfer'?'转账':(getCat.getCategory(r.type,r.categoryId).name),
-      '金额': r.amount, '账户': transferText(r), '备注': r.note||''
-    })
+    // 与 MineView 真实导出逻辑一致：余额调整/期初余额保留真实类型并打标记，保证回导后仍不计入收支
+    const detailRow = (r) => {
+      if (r.carryover) return {
+        '日期': r.date, '时间': '', '类型': r.type==='income'?'收入':'支出', '分类': '期初余额',
+        '金额': r.amount, '账户': accountName(r.accountId), '备注': r.note||'', '结转': '是'
+      }
+      return {
+        '日期': r.date, '时间': '',
+        '类型': r.type==='transfer'?'转账':(r.type==='income'?'收入':'支出'),
+        '分类': r.type==='transfer'?'转账':(r.adjust?'余额调整':getCat.getCategory(r.type,r.categoryId).name),
+        '金额': r.amount, '账户': transferText(r), '备注': r.note||'', '调整': r.adjust?'是':''
+      }
+    }
     const byCategory = () => []
     const byMonth = () => []
 
@@ -120,13 +129,27 @@ try {
     const hasFoodBg = !!state.budgets.find(b => b.categoryId === 'food' && Math.abs(b.amount - 300) < 0.001)
     const budgetsParsed = importResult ? importResult.budgets : 0
 
+    // 余额调整 / 期初余额：导出→导入后是否仍保持「不计入收支」的特殊身份
+    const adjRec = state.records.find(x => x.id === 'r3')
+    const coRec = state.records.find(x => x.id === 'r4')
+    // 全量真实支出（排除余额调整、期初余额、转账），应为 88.5，不得把 300 的期初余额算进去
+    let expenseReal = 0
+    for (const x of state.records) {
+      if (x.type === 'transfer' || x.adjust || x.carryover) continue
+      if (x.type === 'expense') expenseReal += x.amount
+    }
+
     return JSON.stringify({
       zipped: r.zipped, images: r.images, name: r.name,
       zipBytes: bytes ? bytes.length : 0,
       importResult, restoredImages, budgetsParsed, budgetsAfter, hasTotalBg, hasFoodBg,
       bgDump: state.budgets.map(b => ({ c: b.categoryId, a: b.amount })),
       pBg: parsedBudgetsDump,
-      balA: ledgerMod.accountBalanceOf('a')
+      balA: ledgerMod.accountBalanceOf('a'),
+      recsAfter: state.records.length,
+      adjCat: adjRec ? adjRec.categoryId : null, adjFlag: adjRec ? adjRec.adjust : null,
+      coCat: coRec ? coRec.categoryId : null, coFlag: coRec ? coRec.carryover : null,
+      expenseReal
     })
   })()`)
   const data = JSON.parse(ret)
@@ -135,14 +158,18 @@ try {
   ok('导出为 ZIP（zipped=true）', data.zipped === true)
   ok('导出包含 1 张图片', data.images === 1)
   ok('ZIP 字节数 > 0', data.zipBytes > 0)
-  ok('导入解析到 2 笔流水', data.importResult && data.importResult.records === 2)
+  ok('导入解析到 4 笔流水', data.importResult && data.importResult.records === 4)
   ok('导入识别到图片', data.importResult && data.importResult.imageCount === 1)
   ok('图片成功回写到记录（1 张）', data.restoredImages === 1)
-  ok('导入后余额承接正确（200-88.5=111.5）', Math.abs(data.balA - 111.5) < 0.001)
+  ok('导入后余额承接正确（200-88.5+500=611.5）', Math.abs(data.balA - 611.5) < 0.001)
   ok('导出解析到 2 条预算', data.budgetsParsed === 2)
   ok('导入后还原 2 条预算', data.budgetsAfter === 2)
   ok('总预算金额还原正确', data.hasTotalBg === true)
   ok('分类预算金额还原正确', data.hasFoodBg === true)
+  ok('导入后还原 4 条流水', data.recsAfter === 4)
+  ok('余额调整回导后仍为 adjust 分类', data.adjCat === 'adjust_i' && data.adjFlag === true)
+  ok('期初余额回导后仍为 carryover 分类', data.coCat === 'carryover_e' && data.coFlag === true)
+  ok('真实支出不含余额调整/期初（=88.5）', Math.abs(data.expenseReal - 88.5) < 0.001)
 } catch (e) {
   console.log('测试异常：', e.message)
   process.exitCode = 1
