@@ -108,19 +108,29 @@ if (doPublish) {
   step('5/7 发布下载站（已跳过 --no-publish）')
 }
 
-/* ---------- 6. 发布到 GitHub Release ---------- */
+/* ---------- 6. 发布到 GitHub Release（固定的「最新版」Release） ----------
+ * 不每个版本单独建 Release，而是始终更新同一个 Release（标签 latest），
+ * 让用户始终从同一个入口拿到最新安装包。代码版本标签 vX.Y.Z 仍照常打（见第 7 步）。
+ */
 if (doRelease) {
-  step('6/7 发布到 GitHub Release')
-  const tag = `v${version}`
-  const title = `小王记账 v${version}`
-  const notes = `小王记账 v${version} 正式签名安装包（${sizeMB} MB）\n\n- 安装包：${path.basename(apkSrc)}\n- 提交信息：${commitMsg || 'chore: 发布 v' + version}`
+  step('6/7 发布到 GitHub Release（最新版）')
+  const tag = 'latest'
+  const title = '小王记账 最新版'
+  const notes = `小王记账 最新正式签名安装包：v${version}（${sizeMB} MB）\n\n- 安装包：${path.basename(apkSrc)}\n- 对应版本：v${version}\n- 提交信息：${commitMsg || 'chore: 发布 v' + version}\n\n历史版本可在 Git 标签 v${version} 中查看源码。`
   const relEnv = { ...env, GH_TOKEN: process.env.GH_TOKEN || env.GH_TOKEN || '' }
   try {
+    // 先删除旧的「最新版」Release 与标签，再重建（保证始终是最新 APK）
+    try {
+      execSync(`gh release delete latest --repo ${GH_REPO} --yes`, { env: relEnv, shell: '/bin/bash', stdio: 'ignore' })
+    } catch (e) { /* 不存在则忽略 */ }
+    try {
+      execSync(`git push origin :refs/tags/latest`, { env: relEnv, shell: '/bin/bash', stdio: 'ignore' })
+    } catch (e) { /* 不存在则忽略 */ }
     execSync(
       `gh release create ${tag} "${apkSrc}" --repo ${GH_REPO} --title "${title}" --notes "${notes.replace(/"/g, '\\"')}" --latest`,
       { env: relEnv, shell: '/bin/bash', stdio: 'inherit' }
     )
-    console.log(`✓ 已发布 GitHub Release：${tag}`)
+    console.log(`✓ 已更新 GitHub Release（最新版）：${tag}`)
   } catch (e) {
     console.error('✗ GitHub Release 发布失败（请确认 gh 已登录且具备权限，或手动发布）')
   }
