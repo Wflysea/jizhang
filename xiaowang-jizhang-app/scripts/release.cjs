@@ -161,6 +161,20 @@ if (doGit) {
   } catch (e) {
     console.log('（推送远端失败，请检查网络/权限后手动推送）')
   }
+  // 第 6 步建 Release 时 main 尚未推送本次提交，latest 标签会指向上一版提交。
+  // 这里把 latest 标签强制对齐到本次发布提交，保证「最新版」源码快照与 APK 同版。
+  if (doRelease && (process.env.GH_TOKEN || env.GH_TOKEN)) {
+    try {
+      const head = execSync('git rev-parse HEAD', { cwd: ROOT_DIR, env }).toString().trim()
+      execSync(
+        `gh api -X PATCH repos/${GH_REPO}/git/refs/tags/latest -f sha=${head} -F force=true`,
+        { env: { ...env, GH_TOKEN: process.env.GH_TOKEN || env.GH_TOKEN }, shell: '/bin/bash', stdio: 'ignore' }
+      )
+      console.log('✓ latest 标签已对齐到本次发布提交')
+    } catch (e) {
+      console.log('（latest 标签对齐失败，可忽略；不影响 Release 资产下载）')
+    }
+  }
 } else {
   step('7/7 Git 提交与标签（已跳过 --no-git）')
 }
