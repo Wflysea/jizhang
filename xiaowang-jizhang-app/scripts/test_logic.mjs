@@ -264,4 +264,48 @@ console.log('余额调整不计入收支：')
   ok('isNonCountable 容忍 null', isNonCountable(null) === false)
 }
 
+// ---- 多账本（数据独立） ----
+console.log('多账本：')
+{
+  const { addBook, switchBook, renameBook, removeBook, activeBook, activeBookName, bookRecordCount } = ledger
+  const mainId = 'main'
+
+  // 默认账本存在，先放一笔流水
+  ok('默认账本存在', state.books.some(b => b.id === mainId))
+  switchBook(mainId)
+  state.records = []
+  addRecord({ type: 'expense', amount: 11, categoryId: 'food', accountId: 'a', date: '2024-06-01' })
+
+  // 新建账本 → 自动切换，数据为空
+  const trip = addBook('旅行账本')
+  ok('新建账本后名称正确', activeBookName() === '旅行账本')
+  ok('新账本流水为空（与默认账本隔离）', state.records.length === 0)
+  ok('新账本预算为空', state.budgets.length === 0)
+  addRecord({ type: 'expense', amount: 22, categoryId: 'food', accountId: 'a', date: '2024-06-02' })
+
+  // 切回默认账本，数据仍是原来的那一笔
+  switchBook(mainId)
+  ok('切回默认账本金额=11', state.records.length === 1 && Math.abs(state.records[0].amount - 11) < 0.001)
+  ok('默认账本笔数=1', bookRecordCount(mainId) === 1)
+
+  // 再切到旅行账本，金额是 22
+  switchBook(trip.id)
+  ok('切回旅行账本金额=22', state.records.length === 1 && Math.abs(state.records[0].amount - 22) < 0.001)
+  ok('旅行账本笔数=1', bookRecordCount(trip.id) === 1)
+
+  // 重命名
+  renameBook(trip.id, '出游')
+  ok('重命名账本生效', activeBookName() === '出游' && activeBook().id === trip.id)
+
+  // 删除当前账本 → 自动切到另一个，且数据键清理
+  removeBook(trip.id)
+  ok('删除后不在账本列表', !state.books.some(b => b.id === trip.id))
+  ok('删除当前账本后切回默认账本', activeBook().id === mainId)
+  ok('已删除账本笔数归零', bookRecordCount(trip.id) === 0)
+  ok('默认账本数据未受影响（仍为 11）', state.records.length === 1 && Math.abs(state.records[0].amount - 11) < 0.001)
+
+  // 至少保留一个账本
+  ok('拒绝删除最后一个账本', removeBook(mainId) === false && state.books.length === 1)
+}
+
 console.log(`\n全部通过：${pass} 项断言`)

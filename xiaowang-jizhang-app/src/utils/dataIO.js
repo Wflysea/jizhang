@@ -135,6 +135,10 @@ export function exportBackup(balances, summaryBuilders) {
 
   const xlsxB64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' })
 
+  // 文件名带上当前账本名，便于区分不同账本的备份（仅清理文件名非法字符）
+  const _book = state.books && state.books.find(b => b.id === state.activeBookId)
+  const bookLabel = (_book ? _book.name : '账本').replace(/[\\/:*?"<>|]/g, '_').slice(0, 16)
+
   let file, name, zipped = false
   if (imageFiles.length) {
     // 打包成 ZIP：data.xlsx + images/*
@@ -142,11 +146,11 @@ export function exportBackup(balances, summaryBuilders) {
       { name: 'data.xlsx', bytes: base64ToBytes(xlsxB64) },
       ...imageFiles
     ])
-    name = `小王记账_导出_${stamp()}.zip`
+    name = `小王记账_${bookLabel}_导出_${stamp()}.zip`
     file = exportFile(name, bytesToBase64(zipBytes), 'application/zip')
     zipped = true
   } else {
-    name = `小王记账_导出_${stamp()}.xlsx`
+    name = `小王记账_${bookLabel}_导出_${stamp()}.xlsx`
     file = exportFile(name, xlsxB64, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
   }
 

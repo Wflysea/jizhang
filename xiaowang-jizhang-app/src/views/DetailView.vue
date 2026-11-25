@@ -2,7 +2,7 @@
 import { computed, reactive, ref } from 'vue'
 import {
   state, RANGES, rangeBounds, shiftMonth, nowMonth, budgetUsage, totalBudgetOver,
-  summaryOfRange, groupsOfRange, openEdit, isNonCountable,
+  summaryOfRange, groupsOfRange, openEdit, isNonCountable, activeBookName,
   removeRecord, duplicateRecord, accountName, transferText, timeOf
 } from '../store/ledger.js'
 import { getCategory } from '../data/categories.js'
@@ -152,6 +152,7 @@ function actDel(r) {
   <div class="page" @pointerdown.self="closeSwipe">
     <!-- 顶部品牌栏 -->
     <header class="topbar">
+      <button class="book-chip" @click="state.bookOpen = true">📒 {{ activeBookName() }} ‹</button>
       <h1>明细</h1>
       <p class="sub">按 今天 / 本周 / 本月 / 本年 分类查看</p>
     </header>
@@ -309,6 +310,12 @@ function actDel(r) {
 }
 .topbar h1 { font-size: 19px; font-weight: 700; }
 .topbar .sub { font-size: 13px; opacity: .85; margin-top: 3px; }
+.book-chip {
+  display: inline-block; font-size: 12px; color: #fff;
+  background: rgba(255, 255, 255, .2); border-radius: 12px;
+  padding: 3px 10px; margin-bottom: 6px;
+}
+.book-chip:active { background: rgba(255, 255, 255, .32); }
 
 /* 预算概览卡片 */
 .budget-card {

@@ -11,6 +11,17 @@ export function money(n) {
 const STORAGE_KEY = 'xwj_records_v1'
 const ACCOUNT_KEY = 'xwj_accounts_v1'
 const TEMPLATE_KEY = 'xwj_templates_v1'
+const BUDGET_KEY = 'xwj_budgets_v1'
+/* 多账本：账本元数据 + 当前账本 id；默认账本沿用旧的无后缀键，老用户数据无缝保留 */
+const BOOKS_KEY = 'xwj_books_v1'
+const ACTIVE_BOOK_KEY = 'xwj_active_book_v1'
+const DEFAULT_BOOK_ID = 'main'
+const DATA_KEYS = [STORAGE_KEY, ACCOUNT_KEY, TEMPLATE_KEY, BUDGET_KEY]
+
+/** 账本数据键：默认账本用旧键，其余账本加 __<id> 后缀，做到数据独立 */
+function dataKey(base, bookId) {
+  return bookId === DEFAULT_BOOK_ID ? base : `${base}__${bookId}`
+}
 
 /* ---------- 日期工具 ---------- */
 export function pad(n) { return String(n).padStart(2, '0') }
@@ -55,11 +66,41 @@ export function shiftMonth(month, delta) {
   return fmtMonth(d)
 }
 
+/* ---------- 账本元数据（多账本） ---------- */
+const DEFAULT_BOOK_NAME = '我的账本'
+
+function loadBooks() {
+  try {
+    const raw = localStorage.getItem(BOOKS_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed) && parsed.length) {
+        return parsed.map(b => ({
+          id: String(b.id || DEFAULT_BOOK_ID),
+          name: String(b.name || DEFAULT_BOOK_NAME).slice(0, 16),
+          createdAt: b.createdAt || Date.now()
+        }))
+      }
+    }
+  } catch (e) { /* 解析失败则重建默认账本 */ }
+  // 首次启动 / 老用户迁移：建一个默认账本，沿用旧键数据
+  const list = [{ id: DEFAULT_BOOK_ID, name: DEFAULT_BOOK_NAME, createdAt: Date.now() }]
+  try { localStorage.setItem(BOOKS_KEY, JSON.stringify(list)) } catch (e) {}
+  return list
+}
+
+function loadActiveBookId(books) {
+  let id = null
+  try { id = localStorage.getItem(ACTIVE_BOOK_KEY) } catch (e) {}
+  if (id && books.some(b => b.id === id)) return id
+  return books[0] ? books[0].id : DEFAULT_BOOK_ID
+}
+
 /* ---------- 具体账号（二级）持久化 ---------- */
-function loadAccounts() {
+function loadAccounts(bookId) {
   let list = null
   try {
-    const raw = localStorage.getItem(ACCOUNT_KEY)
+    const raw = localStorage.getItem(dataKey(ACCOUNT_KEY, bookId))
     if (raw) {
       const parsed = JSON.parse(raw)
       if (Array.isArray(parsed) && parsed.length) list = parsed
@@ -77,18 +118,18 @@ function loadAccounts() {
   return migrated
 }
 
-function loadRecords() {
+function loadRecords(bookId) {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(dataKey(STORAGE_KEY, bookId))
     if (raw) return JSON.parse(raw)
   } catch (e) { /* 解析失败则按空账本处理 */ }
   return []
 }
 
 /** 记账模板：只存「记一笔」所需的字段，不含日期与记录 id */
-function loadTemplates() {
+function loadTemplates(bookId) {
   try {
-    const raw = localStorage.getItem(TEMPLATE_KEY)
+    const raw = localStorage.getItem(dataKey(TEMPLATE_KEY, bookId))
     if (raw) {
       const parsed = JSON.parse(raw)
       if (Array.isArray(parsed)) return parsed
@@ -97,21 +138,49 @@ function loadTemplates() {
   return []
 }
 
+/** 预算：只存预算字段；按账本隔离 */
+function loadBudgets(bookId) {
+  try {
+    const raw = localStorage.getItem(dataKey(BUDGET_KEY, bookId))
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) {
+        return parsed.map(b => ({
+          id: b.id || `bg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          categoryId: (b.categoryId === undefined || b.categoryId === null) ? null : String(b.categoryId),
+          amount: Number(b.amount) || 0,
+          createdAt: b.createdAt || Date.now()
+        }))
+      }
+    }
+  } catch (e) { /* 解析失败则按空处理 */ }
+  return []
+}
+
 /* ---------- 全局状态 ---------- */
+const _books = loadBooks()
+const _activeBookId = loadActiveBookId(_books)
+
 export const state = reactive({
-  records: loadRecords(),
-  accounts: loadAccounts(),
+  /** 账本列表（持久化）：[{ id, name, createdAt }] */
+  books: _books,
+  /** 当前账本 id（持久化） */
+  activeBookId: _activeBookId,
+  records: loadRecords(_activeBookId),
+  accounts: loadAccounts(_activeBookId),
   month: nowMonth(),
   /** 明细页时间范围：today | week | month | year */
   range: 'month',
   /** 记账模板列表（持久化） */
-  templates: loadTemplates(),
+  templates: loadTemplates(_activeBookId),
   /** 预算列表（持久化，按自然月维度；categoryId 为 null 表示总预算） */
-  budgets: loadBudgets(),
+  budgets: loadBudgets(_activeBookId),
   /** 记一笔弹层：null | { type, categoryId, amount, note, date, accountId } */
   editing: null,
   /** 预算管理全屏页是否打开 */
-  budgetOpen: false
+  budgetOpen: false,
+  /** 账本管理全屏页是否打开 */
+  bookOpen: false
 })
 
 /** 明细页可选的时间范围 */
@@ -147,36 +216,44 @@ export function rangeBounds(range = state.range) {
   return { start: `${m}-01`, end: `${m}-31`, label: m.replace('-', '年') + '月' }
 }
 
+/* 数据持久化：写入「当前账本」对应的键（切换账本时先保存旧账本再换 id） */
+function saveActive(fn) {
+  try { fn() } catch (e) { /* 忽略配额错误 */ }
+}
+
 watch(
   () => state.records,
-  (v) => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(v)) } catch (e) { /* 忽略配额错误 */ }
-  },
+  (v) => saveActive(() => localStorage.setItem(dataKey(STORAGE_KEY, state.activeBookId), JSON.stringify(v))),
   { deep: true }
 )
 
 watch(
   () => state.accounts,
-  (v) => {
-    try { localStorage.setItem(ACCOUNT_KEY, JSON.stringify(v)) } catch (e) { /* 忽略配额错误 */ }
-  },
+  (v) => saveActive(() => localStorage.setItem(dataKey(ACCOUNT_KEY, state.activeBookId), JSON.stringify(v))),
   { deep: true }
 )
 
 watch(
   () => state.templates,
-  (v) => {
-    try { localStorage.setItem(TEMPLATE_KEY, JSON.stringify(v)) } catch (e) { /* 忽略配额错误 */ }
-  },
+  (v) => saveActive(() => localStorage.setItem(dataKey(TEMPLATE_KEY, state.activeBookId), JSON.stringify(v))),
   { deep: true }
 )
 
 watch(
   () => state.budgets,
-  (v) => {
-    try { localStorage.setItem(BUDGET_KEY, JSON.stringify(v)) } catch (e) { /* 忽略配额错误 */ }
-  },
+  (v) => saveActive(() => localStorage.setItem(dataKey(BUDGET_KEY, state.activeBookId), JSON.stringify(v))),
   { deep: true }
+)
+
+watch(
+  () => state.books,
+  (v) => saveActive(() => localStorage.setItem(BOOKS_KEY, JSON.stringify(v))),
+  { deep: true }
+)
+
+watch(
+  () => state.activeBookId,
+  (v) => saveActive(() => localStorage.setItem(ACTIVE_BOOK_KEY, v))
 )
 
 /* ---------- 年度结转（封账） ----------
@@ -734,6 +811,106 @@ export function clearAll() {
   state.records = []
 }
 
+/* ---------- 多账本管理 ----------
+ * state.records/accounts/templates/budgets 始终是「当前账本」的工作副本，
+ * 所有统计与操作 API 无需改动；切换账本时先把当前副本落盘到旧账本键，再加载新账本数据。
+ */
+let bookSeq = 0
+
+/** 把当前 state 的四类数据同步落盘到指定账本（切换前保存旧账本用） */
+function saveBookData(bookId) {
+  saveActive(() => localStorage.setItem(dataKey(STORAGE_KEY, bookId), JSON.stringify(state.records)))
+  saveActive(() => localStorage.setItem(dataKey(ACCOUNT_KEY, bookId), JSON.stringify(state.accounts)))
+  saveActive(() => localStorage.setItem(dataKey(TEMPLATE_KEY, bookId), JSON.stringify(state.templates)))
+  saveActive(() => localStorage.setItem(dataKey(BUDGET_KEY, bookId), JSON.stringify(state.budgets)))
+}
+
+/** 当前账本对象 */
+export function activeBook() {
+  return state.books.find(b => b.id === state.activeBookId) || state.books[0]
+}
+
+/** 当前账本名字 */
+export function activeBookName() {
+  const b = activeBook()
+  return b ? b.name : DEFAULT_BOOK_NAME
+}
+
+/** 读取某账本的流水笔数（用于账本列表展示，不依赖它是否当前账本） */
+export function bookRecordCount(bookId) {
+  try {
+    const raw = localStorage.getItem(dataKey(STORAGE_KEY, bookId))
+    const arr = raw ? JSON.parse(raw) : []
+    return Array.isArray(arr) ? arr.length : 0
+  } catch (e) { return 0 }
+}
+
+/**
+ * 切换账本：先落盘当前账本，再加载目标账本数据到 state。
+ * @returns {boolean} 成功与否（目标不存在返回 false）
+ */
+export function switchBook(id) {
+  if (!state.books.some(b => b.id === id)) return false
+  if (id === state.activeBookId) return true
+  saveBookData(state.activeBookId)              // 保存旧账本
+  state.activeBookId = id                       // watch 会持久化 ACTIVE_BOOK_KEY
+  state.records = loadRecords(id)
+  state.accounts = loadAccounts(id)
+  state.templates = loadTemplates(id)
+  state.budgets = loadBudgets(id)
+  state.editing = null
+  state.budgetOpen = false
+  state.month = nowMonth()
+  return true
+}
+
+/**
+ * 新建账本并切换过去；新账本含默认账户、空流水/模板/预算。
+ * @returns {object} 新建的账本对象
+ */
+export function addBook(name) {
+  const id = `bk_${Date.now()}_${bookSeq++}`
+  const b = {
+    id,
+    name: String(name || '').trim().slice(0, 16) || DEFAULT_BOOK_NAME,
+    createdAt: Date.now()
+  }
+  state.books.push(b)                           // watch 会持久化 BOOKS_KEY
+  switchBook(id)                                // 落盘旧账本、加载新账本空数据
+  // 新账本默认账户落盘（loadAccounts 在无数据时已返回默认账户）
+  saveActive(() => localStorage.setItem(dataKey(ACCOUNT_KEY, id), JSON.stringify(state.accounts)))
+  return b
+}
+
+/** 重命名账本；名字为空返回 false */
+export function renameBook(id, name) {
+  const b = state.books.find(x => x.id === id)
+  const n = String(name || '').trim().slice(0, 16)
+  if (!b || !n) return false
+  b.name = n
+  return true
+}
+
+/**
+ * 删除账本（至少保留一个）。删除当前账本时先切到另一个再清理其数据键。
+ * @returns {boolean} 成功与否
+ */
+export function removeBook(id) {
+  if (state.books.length <= 1) return false
+  const idx = state.books.findIndex(b => b.id === id)
+  if (idx < 0) return false
+
+  if (id === state.activeBookId) {
+    const next = state.books.find(b => b.id !== id)
+    switchBook(next.id)                         // 先落盘并切走当前数据
+  }
+  state.books.splice(idx, 1)                   // watch 会持久化 BOOKS_KEY
+  for (const base of DATA_KEYS) {
+    saveActive(() => localStorage.removeItem(dataKey(base, id)))
+  }
+  return true
+}
+
 /* ---------- 预算管理 ----------
  * 预算按「自然月」维度设置，作用于每一个月：
  *  - 总预算（budget.categoryId 为 null）：约束整月支出上限
@@ -741,25 +918,6 @@ export function clearAll() {
  * 预算金额只设置一次、所有月份共用；使用时按「当前查看的月份」统计实际支出。
  * 统计口径与收支汇总一致：转账、余额调整、期初余额均不计入支出。
  */
-const BUDGET_KEY = 'xwj_budgets_v1'
-
-function loadBudgets() {
-  try {
-    const raw = localStorage.getItem(BUDGET_KEY)
-    if (raw) {
-      const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed)) {
-        return parsed.map(b => ({
-          id: b.id || `bg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-          categoryId: (b.categoryId === undefined || b.categoryId === null) ? null : String(b.categoryId),
-          amount: Number(b.amount) || 0,
-          createdAt: b.createdAt || Date.now()
-        }))
-      }
-    }
-  } catch (e) { /* 解析失败则按空处理 */ }
-  return []
-}
 
 /** 安全数值：非数字 → 0 */
 function num(v) {

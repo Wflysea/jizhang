@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue'
 import {
   state, clearAll, transferText, accountBalances, accountName, timeOf,
-  storageUsage, formatBytes, isNonCountable,
+  storageUsage, formatBytes, isNonCountable, activeBookName,
   carryOver, undoCarryOver, carryOverInfo
 } from '../store/ledger.js'
 import { getCategory } from '../data/categories.js'
@@ -191,12 +191,24 @@ function doUndo() {
   <div class="page">
     <div class="hero">
       <div class="avatar">记</div>
-      <div class="who">
-        <div class="name">我的账本</div>
+      <div class="who" @click="state.bookOpen = true">
+        <div class="name">{{ activeBookName() }} <span class="hero-edit">✎</span></div>
         <div class="cnt">
           共 {{ state.records.length }} 笔记录 · {{ state.accounts.length }} 个账号 · {{ state.templates.length }} 个模板
         </div>
       </div>
+    </div>
+
+    <div class="section-title">账本</div>
+    <div class="card list">
+      <button class="li" @click="state.bookOpen = true">
+        <span class="li-ico">📒</span>
+        <span class="li-txt">
+          当前账本：{{ activeBookName() }}
+          <em class="li-sub">{{ state.books.length }} 个账本，点击切换 / 改名 / 新建</em>
+        </span>
+        <span class="arrow">›</span>
+      </button>
     </div>
 
     <div class="section-title">数据导入导出</div>
@@ -404,7 +416,9 @@ function doUndo() {
   display: flex; align-items: center; justify-content: center;
   font-size: 20px; font-weight: 600;
 }
+.who { cursor: pointer; }
 .name { font-size: 17px; font-weight: 600; }
+.hero-edit { font-size: 14px; opacity: .85; font-weight: 400; }
 .cnt { font-size: 13px; opacity: .85; margin-top: 3px; }
 
 .list { padding: 0 14px; }
